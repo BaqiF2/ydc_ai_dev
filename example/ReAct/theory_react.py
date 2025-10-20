@@ -1,18 +1,23 @@
 """
-改进版ReAct实现 - 更好的提示工程和代码结构
+ReAct实现 - 通过理解原理去实现，更好的理解ReAct的思想
 """
-import re
-import json
 import logging
-from typing import Dict, List, Optional, Any, Callable
+import re
+import os
+
 from dataclasses import dataclass
 from enum import Enum
-
+from typing import Dict, List, Optional, Any
+from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
-import sys
-import os
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from chat_models import openai_tongyi_chat_model
+
+
+def openai_tongyi_chat_model() -> ChatOpenAI:
+    return ChatOpenAI(api_key=os.getenv("DASHSCOPE_API_KEY"),
+                      base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+                      model="qwen3-max")
+
+
 
 # 配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -53,17 +58,15 @@ class ToolExecutor:
 
         # 模拟搜索结果，实际应用中应该调用真实的搜索API
         search_data = {
-            "黄金": "根据最新市场数据，今日黄金价格约为450元/克（24K金），投资金条价格约为440元/克。",
-            "gold": "Current gold price is approximately $65 per gram (24K), investment gold bars around $63 per gram.",
-            "股票": "A股今日整体上涨，上证指数涨幅0.5%，深证成指涨幅0.8%。",
-            "stock": "Stock market today shows mixed results, S&P 500 up 0.3%, NASDAQ down 0.1%.",
-            "汇率": "当前美元兑人民币汇率约为1:7.2，欧元兑人民币约为1:7.8。",
-            "exchange": "Current USD to CNY exchange rate is approximately 1:7.2, EUR to CNY around 1:7.8."
+            "黄金": "根据最新市场数据，今日黄金价格约为1159元/克（24K金），投资金条价格约为1080元/克。",
+            "gold": "Current gold price is approximately $65 per gram (24K), investment gold bars around $63 per gram."
         }
 
+        # 改进的关键词匹配逻辑
+        query_lower = query.lower()
         # 简单的关键词匹配
         for key, value in search_data.items():
-            if key in query.lower():
+            if key in query_lower:
                 return value
 
         return f"未找到关于'{query}'的相关信息，建议尝试其他关键词。"
@@ -73,7 +76,6 @@ class ToolExecutor:
         logger.info(f"执行计算: {expression}")
 
         try:
-            # 安全的数学表达式计算
             # 只允许数字、基本运算符和括号
             allowed_chars = set('0123456789+-*/(). ')
             if not all(c in allowed_chars for c in expression):
@@ -90,6 +92,7 @@ class ToolExecutor:
     def execute(self, action: str, action_input: str) -> str:
         """执行工具"""
         if action in self.tools:
+            logger.info(f"执行工具：{action} 参数: {action_input}")
             return self.tools[action](action_input)
         else:
             return f"未知工具：{action}"
@@ -161,13 +164,20 @@ class ReActAgent:
 
 你是一个专业的理财助手，能够通过思考和行动来帮助用户解答财务和投资相关的问题。
 
+## 重要说明：每次必须返回完整的Thought+Action对
+**每轮必须同时包含Thought和Action（或Final Answer）！**
+**Thought用于展示推理过程，Action用于系统执行工具！**
+
 ## ReAct框架说明
 你必须严格按照以下格式进行思考和行动：
 
+每轮回复必须是以下两种格式之一：
+
+**格式1 - Thought+Action**:
 Thought: 分析用户的问题，思考需要采取什么行动
 Action: 选择并执行一个工具（search_web 或 calculate）
-Observation: 观察工具执行的结果
-... (这个Thought-Action-Observation循环可以重复多次)
+
+**格式2 - Final Answer**:
 Final Answer: 当收集到足够信息时，给出最终答案
 
 ## 可用工具
@@ -180,21 +190,30 @@ Final Answer: 当收集到足够信息时，给出最终答案
    - 返回: 计算结果
 
 ## 使用规则
-1. 每次只能执行一个工具
-2. 工具参数必须明确具体
-3. 如果搜索结果不够明确，可以调整搜索词重新搜索
-4. 计算时要确保表达式正确
-5. 最终答案要清晰、准确、有用
+1. 每次必须同时包含Thought和Action（或Final Answer）
+2. Thought展示推理过程，Action用于系统执行
+3. 系统只处理Action和Final Answer，忽略单独的Thought
+4. 如果搜索结果不够明确，可以调整搜索词重新搜索
+5. 计算时要确保表达式正确
+6. 最终答案要清晰、准确、有用
 
-## 示例交互
-用户: "我有1万元，现在黄金450元一克，能买多少克？"
+## 正确交互示例
+用户: "10000元能买多少克黄金？"
+助手:
+Thought: 我需要查询当前黄金的价格，然后用1万元除以单价，计算能购买多少克黄金。
+Action: search_web("黄金价格")
 
-Thought: 用户想知道1万元能买多少克黄金，需要计算10000除以450
-Action: calculate(10000/450)
-Observation: 计算结果：22.22
-Final Answer: 根据当前黄金价格450元/克，您的1万元大约可以购买22.22克黄金。
+系统: Observation: 今日黄金价格约为1159元/克（24K金），投资金条价格约为1080元/克。
 
-现在开始帮助用户解答理财问题。"""
+助手:
+Thought: 现在我看到黄金价格是1159元/克，需要计算10000元能买多少克。
+Action: calculate(10000/1159)
+
+系统: Observation: 计算结果：8.63
+
+助手: Final Answer: 按照当前黄金价格约1159元/克，1万元可以购买约8.63克黄金。
+
+现在开始帮助用户解答理财问题。记住：每轮必须同时返回Thought+Action！"""
 
     def process_question(self, question: str) -> str:
         """处理问题"""
@@ -206,6 +225,7 @@ Final Answer: 根据当前黄金价格450元/克，您的1万元大约可以购�
             HumanMessage(content=question)
         ]
 
+        # 记录每一轮解析相应结果
         steps = []
 
         for iteration in range(self.max_iterations):
@@ -239,10 +259,11 @@ Final Answer: 根据当前黄金价格450元/克，您的1万元大约可以购�
                     logger.info(f"=== 最终答案 ===")
                     logger.info(f"答案: {step.final_answer}")
                     steps.append(step)
+                    # 退出时，保存对话历史
                     self._save_conversation_history(question, steps)
                     return step.final_answer
 
-                # 执行动作
+                # 执行动作 - 系统只处理Action和Final Answer
                 if step.action_type != ActionType.UNKNOWN:
                     observation = self.tool_executor.execute(
                         step.action_type.value,
@@ -257,8 +278,16 @@ Final Answer: 根据当前黄金价格450元/克，您的1万元大约可以购�
 
                     steps.append(step)
                 else:
-                    logger.warning("无法识别的动作类型")
-                    break
+                    # 如果没有识别到动作，记录思考内容但继续循环
+                    if step.thought:
+                        logger.info(f"记录思考过程: {step.thought}")
+                        steps.append(step)
+                        # 即使没有action，也要添加消息历史以便模型继续
+                        messages.append(AIMessage(content=content))
+                        # 不中断，继续下一轮迭代 - 模型应该在下轮提供Action
+                    else:
+                        logger.warning("无法识别的动作类型且没有思考内容")
+                        break
 
             except Exception as e:
                 logger.error(f"迭代过程中出错: {str(e)}")
@@ -296,9 +325,7 @@ def main():
 
     # 测试问题
     test_questions = [
-        "我手上有1万块钱，现在黄金价格是450元一克，我能买多少克黄金？",
-        "如果我有5000元，股票价格是25元一股，我能买多少股？",
-        "当前美元兑人民币汇率是多少？"
+        "我手上有1万块钱，我能买多少克黄金？"
     ]
 
     print("=== ReAct智能理财助手 ===\n")
@@ -312,20 +339,10 @@ def main():
         print(f"\n最终答案: {answer}")
         print("\n" + "="*70 + "\n")
 
-    # 交互模式
-    print("\n=== 交互模式 ===")
-    print("请输入您的问题（输入'quit'退出）：")
+    logger.info("=====输出所有的对话历史====")
+    for history in agent.conversation_history:
+        print(f"{history}")
 
-    while True:
-        user_input = input("\n您的问题: ").strip()
-
-        if user_input.lower() in ['quit', 'exit', '退出']:
-            print("感谢使用，再见！")
-            break
-
-        if user_input:
-            answer = agent.process_question(user_input)
-            print(f"\n答案: {answer}")
 
 
 if __name__ == "__main__":

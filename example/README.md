@@ -1,3 +1,11 @@
+## 前提
+需要配置环境变量。当前项目统一使用。自行更换
+```python
+ChatOpenAI(api_key=os.getenv("DASHSCOPE_API_KEY"),
+                      base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+                      model="qwen3-max")
+```
+
 ## 示例代码
 
 ### ReAct
