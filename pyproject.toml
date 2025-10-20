@@ -1,10 +1,11 @@
 [project]
-name = "example"
+name = "ydc-ai-dev"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    "langchain>=1.0.0",
+    "langchain>=1.0.1",
     "langchain-openai>=1.0.0",
+    "langgraph>=1.0.0",
 ]

@@ -5,6 +5,10 @@ ChatOpenAI(api_key=os.getenv("DASHSCOPE_API_KEY"),
                       base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
                       model="qwen3-max")
 ```
+## 运行
+```bash
+ uv run python example/ReAct/theory_react.py
+```
 
 ## 示例代码
 
