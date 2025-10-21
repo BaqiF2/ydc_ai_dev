@@ -18,7 +18,7 @@
 
 ### ReAct (Reasoning + Action) 框架
 - [✅] 基于原理构建一个ReAct框架
-- [❌] 基于langchain构建一个ReAct框架
+- [✅] 基于langchain构建一个ReAct框架
 - [❌] 基于langgraph构建一个ReAct框架
 - [❌] 基于autogen构建一个ReAct框架
 - [❌] 基于agentScope构建一个ReAct框架
