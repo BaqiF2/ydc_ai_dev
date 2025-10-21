@@ -7,7 +7,8 @@ ChatOpenAI(api_key=os.getenv("DASHSCOPE_API_KEY"),
 ```
 ## 运行
 ```bash
- uv run python example/ReAct/theory_react.py
+ uv run python example/ReAct/classics_react.py
+ uv run python example/ReAct/lanchain_react.py
 ```
 
 ## 示例代码

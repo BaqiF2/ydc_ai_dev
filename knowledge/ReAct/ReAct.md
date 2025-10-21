@@ -176,12 +176,28 @@ if step.final_answer:
 
 #### 方法二：使用 Agent 框架实现（实践层面）
 
+使用成熟的框架,这会大大简化开发流程。
 
-使用成熟的框架，例如 LangChain，LangGraph，AutoGen 这会大大简化开发流程。
+● LangChain
+create_agent 方法本身不使用显式的 ReAct 提示词。它依赖于模型的原生 tool calling 能力，其实就是默认未来模型必备的能力。
+```python
+graph = create_agent(  
+    model="anthropic:claude-3-7-sonnet-latest",  
+    tools=[check_weather],  
+    system_prompt="You are a helpful assistant",  # 这是唯一的提示词  
+)
+```
+
+这种方式下,"思考-执行-观察"的循环是通过图结构和工具调用机制隐式实现的,而不是通过提示词中的格式指令
+
+详细查看: [源码分析-langchain.md](%E6%BA%90%E7%A0%81%E5%88%86%E6%9E%90-langchain.md)
+
+● LangGraph
+● AutoGen
+● AgentScope 
 
 
-
-**<font style="color:#DF2A3F;">./example/ReAct/langchain_react.py</font>**
+**<font style="color:#DF2A3F;">[langchain_react.py](../../example/ReAct/langchain_react.py)</font>**
 
 **<font style="color:#DF2A3F;">./example/ReAct/langgraph_react.py</font>**
 
