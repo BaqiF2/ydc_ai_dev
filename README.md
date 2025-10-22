@@ -13,15 +13,16 @@
 1. **理论与实践结合**：在 `knowledge` 目录中记录理论知识，在 `example` 目录中提供相应的代码实现
 2. **持续更新**：定期添加新的学习内容和示例
 3. **深入理解**：通过动手实践来验证和巩固理论知识
+4. **项目实战**：通过实际项目来应用所学知识
 
 ## 当前学习主题
 
 ### ReAct (Reasoning + Action) 框架
 - [✅] 基于原理构建一个ReAct框架
 - [✅] 基于langchain构建一个ReAct框架
-- [❌] 基于langgraph构建一个ReAct框架
-- [❌] 基于autogen构建一个ReAct框架
-- [❌] 基于agentScope构建一个ReAct框架
-- [❌] 基于SpringAI alibaba构建一个ReAct框架
+- [✅] 基于langgraph构建一个ReAct框架
+- [✅] 基于autogen构建一个ReAct框架
+- [✅] 基于agentScope构建一个ReAct框架
+- [❌] 基于SpringAI alibaba构建一个ReAct框架（java框架作为补充，最后在更新上来）
 
 
