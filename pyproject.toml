@@ -5,7 +5,10 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "agentscope>=1.0.5",
+    "autogen-ext>=0.7.5",
     "langchain>=1.0.1",
     "langchain-openai>=1.0.0",
     "langgraph>=1.0.0",
+    "pyautogen>=0.10.0",
 ]

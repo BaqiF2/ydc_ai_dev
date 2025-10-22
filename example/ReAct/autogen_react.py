@@ -1,26 +1,33 @@
 """
-使用langchain来实现ReAct
-注意： 新版langchain更多是依赖于模型原生的对工具调用的能力，其实就是默认未来模型必备的能力
+注意：需要说明的是autogen没有对ReAct进行封装
+只是实现对工具的调用，当依赖模型的思考和调用能力时，和langchain的create_agent也变得类似了
 """
+import asyncio
 import logging
 import os
 
-from langchain.agents import create_agent
-from langchain_core.tools import tool
-from langchain_openai import ChatOpenAI
+from autogen_agentchat.agents import AssistantAgent
+from autogen_agentchat.messages import BaseChatMessage
+from autogen_ext.models.openai import OpenAIChatCompletionClient
 
-# 配置日志
+#配置日志
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# 定义模型
-def openai_tongyi_chat_model() -> ChatOpenAI:
-    return ChatOpenAI(api_key=os.getenv("DASHSCOPE_API_KEY"),
-                      base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-                      model="qwen3-max")
+# 创建通义千问模型客户端
+tongyi_model_client = OpenAIChatCompletionClient(
+    model="qwen3-max",  # 或其他通义千问模型名称
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    api_key= os.getenv("DASHSCOPE_API_KEY"),
+    model_info={
+        "vision": False,
+        "function_calling": True,
+        "json_output": True,
+        "family": "qwen",
+        "structured_output": True,
+    },
+)
 
-# 定义工具
-@tool
 def search_web(query: str) -> str:
     """搜索工具"""
     logger.info(f"执行搜索: {query}")
@@ -40,7 +47,6 @@ def search_web(query: str) -> str:
 
     return f"未找到关于'{query}'的相关信息，建议尝试其他关键词。"
 
-@tool
 def calculate( expression: str) -> str:
     """计算工具"""
     logger.info(f"执行计算: {expression}")
@@ -59,16 +65,21 @@ def calculate( expression: str) -> str:
     except Exception as e:
         return f"计算错误：{str(e)}"
 
-# 使用langchain创建ReAct代理
-model = openai_tongyi_chat_model()
-agent  = create_agent(model = model, tools = [search_web,calculate])
+# 结果上他只调用了一次工具，不会再次调用。所以并不是完全的ReAct
+async def main() -> None:
+    agent = AssistantAgent(
+        name="assistant",
+        model_client=tongyi_model_client,
+        tools=[search_web,calculate],
+        system_message="You are a helpful assistant.",
+        max_tool_iterations=10, # 设置最多使用工具次数
+    )
+    res = await agent.run(task = "我手上有1万块钱，我能买多少克黄金？")
+    messages:list[BaseChatMessage] = res.messages
+    for msg in messages:
+        print(msg.to_text())
+        print("="*20)
 
-# 输出每一步的结果
-res = agent.invoke(input={"messages": [{"role": "user", "content":  "我手上有1万块钱，我能买多少克黄金？"}]},
-                   # print_mode="updates"
-                   )
 
-# print(res)
 
-for message in res["messages"]:
-    message.pretty_print()
+asyncio.run(main())

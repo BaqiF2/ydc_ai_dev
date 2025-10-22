@@ -22,5 +22,6 @@
 - [❌] 基于langgraph构建一个ReAct框架
 - [❌] 基于autogen构建一个ReAct框架
 - [❌] 基于agentScope构建一个ReAct框架
+- [❌] 基于SpringAI alibaba构建一个ReAct框架
 
 
