@@ -25,4 +25,9 @@
 - [✅] 基于agentScope构建一个ReAct框架
 - [❌] 基于SpringAI alibaba构建一个ReAct框架（java框架作为补充，最后在更新上来）
 
+### PlanAndExecute (Plan + execute) 框架
+- [✅] 基于原理构建一个PlanAndExecute框架
+- [✅] 基于langchain构建一个PlanAndExecute框架
+
+
 
