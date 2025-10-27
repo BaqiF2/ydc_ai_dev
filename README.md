@@ -29,5 +29,16 @@
 - [✅] 基于原理构建一个PlanAndExecute框架
 - [✅] 基于langchain构建一个PlanAndExecute框架
 
+### Agent 理论与实践
+- [✅] 理论知识整理 - Base-Agent
+- [❌] Agent-工具：Function Calling 与 MCP 与 XML提示词
+- [❌] Agent-计划
+- [❌] Agent-记忆
+- [❌] Agent-知识
+
+
+
+
+
 
 

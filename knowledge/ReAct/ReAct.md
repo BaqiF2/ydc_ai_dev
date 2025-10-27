@@ -172,7 +172,7 @@ if step.final_answer:
 
 
 
-**<font style="color:#DF2A3F;">./example/ReAct/theory_react.py</font>**
+**./example/ReAct/theory_react.py**
 
 #### 方法二：使用 Agent 框架实现（实践层面）
 
@@ -201,9 +201,9 @@ graph = create_agent(
 ● SpringAI alibaba
 
 
-**<font style="color:#DF2A3F;">[langchain_react.py](../../example/ReAct/langchain_react.py)</font>**
+**[langchain_react.py](../../example/ReAct/langchain_react.py)**
 
-**<font style="color:#DF2A3F;">./example/ReAct/langgraph_react.py</font>**
+**./example/ReAct/langgraph_react.py**
 
-**<font style="color:#DF2A3F;">./example/ReAct/autogen_react.py</font>**
+**./example/ReAct/autogen_react.py**
 
