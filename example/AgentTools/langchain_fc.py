@@ -1,14 +1,19 @@
+"""
+使用langchain已经封装好的SDK
+进行functionCalling的练习
+"""
+
 import os
 
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 
-# 初始化LangChain 1.0推荐的模型配置
+# 初始化LLM
 llm = ChatOpenAI(api_key=os.getenv("DASHSCOPE_API_KEY"),
                  base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
                  model="qwen3-max")
 
-# 使用@tool装饰器定义工具函数 - LangChain 1.0标准方式
+# 使用@tool装饰器定义工具函数
 @tool
 def get_weather(city: str) -> str:
     """获取指定城市的天气信息"""
@@ -20,19 +25,19 @@ def get_time() -> str:
     from datetime import datetime
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-# 绑定多个工具到LLM - LangChain 1.0增强的bind_tools功能
+# 绑定多个工具到LLM -
 tool_llm = llm.bind_tools(tools=[get_weather, get_time])
 
 message_history = [{"role":"user", "content":"请告诉我北京天气和当前时间"}]
 
-# 测试多个工具调用 - LangChain 1.0支持同时调用多个工具
+# 测试多个工具调用 -
 print("\n=== 测试多个工具调用 ===")
 multi_response = tool_llm.invoke(message_history)
 print(f'内容: {multi_response.content}')
 print(f'工具调用: {multi_response.tool_calls}')
 
 
-# 将助手的响应添加到消息历史中（关键步骤）
+# 将助手的响应添加到消息历史中
 message_history.append({
     "role": "assistant",
     "content": multi_response.content,
