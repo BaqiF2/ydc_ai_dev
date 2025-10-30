@@ -11,6 +11,9 @@ from agentscope.memory import InMemoryMemory
 from agentscope.tool import Toolkit, ToolResponse
 from agentscope.message import Msg, TextBlock
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 import asyncio
 
 # 配置日志

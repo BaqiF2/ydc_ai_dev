@@ -4,6 +4,9 @@ Plan-and-Execute Agent实现 - 基于规划-执行分离架构
 """
 import logging
 import os
+from dotenv import load_dotenv
+load_dotenv()
+
 import re
 from dataclasses import dataclass, field
 from enum import Enum

@@ -4,6 +4,8 @@ ReAct实现 - 通过理解原理去实现，更好的理解ReAct的思想
 import logging
 import re
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 from dataclasses import dataclass
 from enum import Enum

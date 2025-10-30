@@ -5,6 +5,8 @@
 import asyncio
 import logging
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 from autogen_agentchat.agents import AssistantAgent
 from autogen_agentchat.messages import BaseChatMessage
