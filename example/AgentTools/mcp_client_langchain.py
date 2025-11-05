@@ -20,7 +20,7 @@ import asyncio
 import os
 
 from dotenv import load_dotenv
-from langchain_core.messages import HumanMessage
+from langchain.messages import HumanMessage
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_agent

@@ -29,12 +29,21 @@
 - [✅] 基于原理构建一个PlanAndExecute框架
 - [✅] 基于langchain构建一个PlanAndExecute框架
 
+### langchain 1.0 知识点整合
+- [❌] 核心组件
+- [❌] 高级用法
+- [❌] 集成组件
+
+
+### langgraph 1.0 知识点整合
+
+
 ### Agent 理论与实践
 - [✅] 理论知识整理 - Base-Agent
 - [✅] Agent-工具：Function Calling 与 MCP 与 XML提示词
-- [❌] Agent-计划
-- [❌] Agent-记忆
-- [❌] Agent-知识
+- [✅] Agent-计划: 使用提示词方式引导LLM进行规划
+- [❌] Agent-记忆: 短期与长期记忆的管理
+- [❌] Agent-知识：知识库 + 网络搜索进行知识的补充
 
 
 
