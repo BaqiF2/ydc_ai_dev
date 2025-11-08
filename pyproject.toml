@@ -19,4 +19,5 @@ dependencies = [
     "requests>=2.31.0",
     "pydantic>=2.12.3",
     "langchain-deepseek>=1.0.0",
+    "ruff>=0.14.4",
 ]
