@@ -3,11 +3,13 @@
 """
 import os
 
+from dotenv import load_dotenv
+
 from langchain.agents import create_agent
 from langchain.agents.middleware import PIIMiddleware
 from langchain_openai import ChatOpenAI
 
-openai_model = ChatOpenAI(model="gpt-5",api_key=os.getenv("OPENAI_AI_KEY"),base_url=os.getenv("OPEN_AI_URL"))
+openai_model = ChatOpenAI(model="gpt-5", api_key=os.getenv("OPENAI_AI_KEY"), base_url=os.getenv("OPEN_AI_URL"))
 
 # 定义敏感词列表
 sensitive_patterns = [
@@ -24,11 +26,11 @@ sensitive_patterns = [
 combined_pattern = '|'.join(sensitive_patterns)
 agent = create_agent(
     openai_model,
-        middleware=[PIIMiddleware(pii_type="personal",
+    middleware=[PIIMiddleware(pii_type="personal",
                               strategy="mask",
                               detector=combined_pattern,
-                              apply_to_input = True,
-                              apply_to_output = True,
-                              apply_to_tool_results = True
+                              apply_to_input=True,
+                              apply_to_output=True,
+                              apply_to_tool_results=True
                               )],
 )
