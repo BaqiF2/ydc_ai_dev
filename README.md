@@ -1,4 +1,5 @@
 # Ydc AI dev
+
 你一定可以成为一个AI应用开发专家!
 
 ## 学习目标
@@ -18,6 +19,7 @@
 ## 当前学习主题
 
 ### ReAct (Reasoning + Action) 框架
+
 - [✅] 基于原理构建一个ReAct框架
 - [✅] 基于langchain构建一个ReAct框架
 - [✅] 基于langgraph构建一个ReAct框架
@@ -26,19 +28,20 @@
 - [❌] 基于SpringAI alibaba构建一个ReAct框架（java框架作为补充，最后在更新上来）
 
 ### PlanAndExecute (Plan + execute) 框架
+
 - [✅] 基于原理构建一个PlanAndExecute框架
 - [✅] 基于langchain构建一个PlanAndExecute框架
 
 ### langchain 1.0 知识点整合
-- [❌] 核心组件
+
+- [✅] 核心组件: agent核心组件的概念与使用
 - [❌] 高级用法
 - [❌] 集成组件
 
-
 ### langgraph 1.0 知识点整合
 
-
 ### Agent 理论与实践
+
 - [✅] 理论知识整理 - Base-Agent
 - [✅] Agent-工具：Function Calling 与 MCP 与 XML提示词
 - [✅] Agent-计划: 使用提示词方式引导LLM进行规划
