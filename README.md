@@ -46,6 +46,8 @@
 - [✅] Agent-工具：Function Calling 与 MCP 与 XML提示词
 - [✅] Agent-计划: 使用提示词方式引导LLM进行规划
 - [❌] Agent-记忆: 短期与长期记忆的管理(上下文工程)
+        [✅] 1. 新增了上下文腐烂
+        [✅] 2. 新增manus与langchain团队对于上下文工程的分享内容
 - [❌] Agent-知识：知识库 + 网络搜索进行知识的补充（RAG Tools）
 
 
