@@ -51,6 +51,9 @@
   [✅] 3. Manus - AI代理的上下文工程：构建Manus的经验教训
 - [❌] Agent-知识：知识库 + 网络搜索进行知识的补充（RAG Tools）
 
+### 源码解读
+- [✅] langchain - open_deep_research
+
 ### 工程实战文章
 
 - [✅] 1. PostHog AI 智能体开发过程的经验与教训
