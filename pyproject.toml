@@ -21,4 +21,5 @@ dependencies = [
     "langchain-deepseek>=1.0.0",
     "ruff>=0.14.4",
     "langchain-anthropic>=1.0.2",
+    "claude-agent-sdk>=0.1.18",
 ]

@@ -1,66 +1,132 @@
-# Ydc AI dev
+[中文版本](README_ZH.md) | Chinese Version
 
-你一定可以成为一个AI应用开发专家!
+# Ydc Ai Dev
 
-## 学习目标
+You can definitely become an AI application development expert!
 
-- 系统性地学习 AI 相关理论知识
-- 通过实际代码示例加深理解
-- 持续更新和扩展知识体系
-- 建立完整的学习轨迹记录
+## Quick Start
 
-## 学习方法
+### 1. Environment Configuration
 
-1. **理论与实践结合**：在 `knowledge` 目录中记录理论知识，在 `example` 目录中提供相应的代码实现
-2. **持续更新**：定期添加新的学习内容和示例
-3. **深入理解**：通过动手实践来验证和巩固理论知识
-4. **项目实战**：通过实际项目来应用所学知识
+Copy `.env.example` file to `.env` and configure the corresponding model API Key and Base URL:
 
-## 当前学习主题
+```bash
+cp .env.example .env
+```
 
-### ReAct (Reasoning + Action) 框架
+Then edit the `.env` file and fill in your API configuration:
+- `DASHSCOPE_API_KEY`: Alibaba Cloud Qwen API Key
+- `OPENAI_AI_KEY` and `OPEN_AI_URL`: OpenAI API configuration
+- `DEEPSEEK_API_KEY`: DeepSeek API Key
+- `ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL`: Anthropic Claude API configuration
 
-- [✅] 基于原理构建一个ReAct框架
-- [✅] 基于langchain构建一个ReAct框架
-- [✅] 基于langgraph构建一个ReAct框架
-- [✅] 基于autogen构建一个ReAct框架
-- [✅] 基于agentScope构建一个ReAct框架
-- [❌] 基于SpringAI alibaba构建一个ReAct框架（java框架作为补充，最后在更新上来）
+### 2. Run Python Examples
 
-### PlanAndExecute (Plan + execute) 框架
+```bash
+# Install dependencies
+uv sync
 
-- [✅] 基于原理构建一个PlanAndExecute框架
-- [✅] 基于langchain构建一个PlanAndExecute框架
+# Run quick start example
+uv run python example/claude/py/quickstart/agent.ts
 
-### langchain 1.0 知识点整合
+# Run other examples (such as langchain ReAct)
+uv run python example/langchain01/core/xxx.py
+```
 
-- [✅] 核心组件: agent核心组件的概念与使用
-- [✅] 高级用法：其他高级用法
-- [❌] 集成组件：通过RAG知识，了解langchain的核心集成。补全langchain完整知识体系。
+### 3. Run TypeScript Examples
 
-### langgraph 1.0 知识点整合
+This project uses **ES Modules (ESM)** for modern JavaScript support, including top-level await.
 
-### Agent 理论与实践
+```bash
+# Install dependencies
+npm install
 
-- [✅] 理论知识整理 - Base-Agent
-- [✅] Agent-工具：Function Calling 与 MCP 与 XML提示词
-- [✅] Agent-计划: 使用提示词方式引导LLM进行规划
-- [✅] Agent-记忆: 短期与长期记忆的管理(上下文工程)
-  [✅] 1. 新增了上下文腐烂
-  [✅] 2. 新增manus与langchain团队对于上下文工程的分享内容
-  [✅] 3. Manus - AI代理的上下文工程：构建Manus的经验教训
-- [❌] Agent-知识：知识库 + 网络搜索进行知识的补充（RAG Tools）
+# Run quick start example (uses ESM loader)
+npm run start:ts-agent
 
-### 源码解读
-- [✅] langchain - open_deep_research
+# Run other examples
+node --loader ts-node/esm example/claude/ts/subagent/agent.ts
+node --loader ts-node/esm example/claude/ts/hooks/agent.ts
+```
 
-### 工程实战文章
+**Note**: The project is configured as ESM (see `"type": "module"` in package.json), which enables:
+- ✅ Top-level await support
+- ✅ Modern import/export syntax
+- ✅ Better tree-shaking and optimization
+- ✅ Native browser compatibility
 
-- [✅] 1. PostHog AI 智能体开发过程的经验与教训
+## Learning Objectives
 
+- Systematically learn AI-related theoretical knowledge
+- Deepen understanding through practical code examples
+- Continuously update and expand the knowledge system
+- Establish a complete learning trajectory record
 
+## Learning Methods
 
+1. **Combination of Theory and Practice**: Record theoretical knowledge in the `knowledge` directory, provide corresponding code implementations in the `example` directory
+2. **Continuous Updates**: Regularly add new learning content and examples
+3. **Deep Understanding**: Validate and consolidate theoretical knowledge through hands-on practice
+4. **Project Practice**: Apply learned knowledge through actual projects
 
+## Project Structure
 
+```
+ydc_ai_dev/
+├── example/              # Code examples
+│   ├── claude/          # Claude Agent SDK examples
+│   │   ├── py/         # Python examples
+│   │   │   ├── quickstart/  # Quick start
+│   │   │   └── hooks/       # Hooks usage
+│   │   └── ts/         # TypeScript examples (ESM)
+│   │       ├── quickstart/  # Quick start
+│   │       ├── hooks/       # Hooks usage
+│   │       └── subagent/    # Subagent usage
+│   ├── langchain01/     # Langchain examples
+│   └── PlanAndExecute/  # Plan and Execute examples
+├── knowledge/           # Learning materials and documentation
+└── project/            # Project analysis and architecture documents
+```
 
+## Current Learning Topics
 
+### ReAct (Reasoning + Action) Framework
+
+- [✅] Build a ReAct framework based on principles
+- [✅] Build a ReAct framework based on langchain
+- [✅] Build a ReAct framework based on langgraph
+- [✅] Build a ReAct framework based on autogen
+- [✅] Build a ReAct framework based on agentScope
+- [❌] Build a ReAct framework based on SpringAI alibaba (java framework as a supplement, to be updated later)
+
+### PlanAndExecute (Plan + Execute) Framework
+
+- [✅] Build a PlanAndExecute framework based on principles
+- [✅] Build a PlanAndExecute framework based on langchain
+
+### Langchain 1.0 Knowledge Integration
+
+- [✅] Core Components: Concepts and usage of agent core components
+- [✅] Advanced Usage: Other advanced usage methods
+- [❌] Integration Components: Through RAG knowledge, understand langchain's core integrations. Complete the langchain knowledge system.
+
+### Langgraph 1.0 Knowledge Integration
+
+### Agent Theory and Practice
+
+- [✅] Theoretical Knowledge Organization - Base-Agent
+- [✅] Agent-Tools: Function Calling, MCP, and XML Prompts
+- [✅] Agent-Planning: Use prompt methods to guide LLM for planning
+- [✅] Agent-Memory: Management of short-term and long-term memory (Context Engineering)
+  - [✅] 1. Added context decay
+  - [✅] 2. Added manuscripts and langchain team's sharing content on context engineering
+  - [✅] 3. Manus - Context Engineering for AI Agents: Lessons Learned from Building Manus
+- [❌] Agent-Knowledge: Knowledge base + web search for knowledge supplementation (RAG Tools)
+
+### Source Code Analysis
+
+- [✅] Langchain - open_deep_research
+
+### Engineering Practice Articles
+
+- [✅] 1. PostHog AI Agent development process experience and lessons learned

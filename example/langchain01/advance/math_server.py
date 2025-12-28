@@ -54,7 +54,7 @@ def main():
     print(f"Time Service MCP Server 启动中...")
     print(f"传输方式: {args.transport}")
     if args.transport == "streamable-http":
-        print(f"访问地址: http://localhost:{args.port}/mcp")
+        print(f"访问地址: http://localhost:{args.port}/mcp_tools")
 
     # 运行服务器
     if args.transport == "streamable-http":

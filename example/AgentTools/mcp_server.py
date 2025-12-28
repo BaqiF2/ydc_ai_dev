@@ -29,10 +29,11 @@ from mcp.server.fastmcp import FastMCP
 # 创建FastMCP服务器实例
 mcp = FastMCP[Any]("Time Service")
 
+
 @mcp.tool()
 def get_current_time(
-    timezone: str = "UTC",
-    format: Literal["iso", "readable", "timestamp"] = "iso"
+        timezone: str = "UTC",
+        format: Literal["iso", "readable", "timestamp"] = "iso"
 ) -> str:
     """
     获取当前时间
@@ -51,7 +52,7 @@ def get_current_time(
         # 获取指定时区
         tz = pytz.timezone(timezone)
         now = datetime.now(tz)
-        
+
         # 根据格式返回不同的时间表示
         if format == "iso":
             return now.isoformat()
@@ -78,13 +79,13 @@ def get_timezone_list(region: str = "all") -> str:
     """
     try:
         all_timezones = pytz.all_timezones
-        
+
         if region.lower() == "all":
             timezones = all_timezones
         else:
             # 按地区筛选
             timezones = [tz for tz in all_timezones if tz.startswith(region)]
-        
+
         # 限制返回数量，避免过长
         max_display = 50
         if len(timezones) > max_display:
@@ -92,7 +93,7 @@ def get_timezone_list(region: str = "all") -> str:
             result += f"\n... (共 {len(timezones)} 个时区，仅显示前 {max_display} 个)"
         else:
             result = "\n".join(timezones)
-        
+
         return result
     except Exception as e:
         return f"错误: {str(e)}"
@@ -113,13 +114,13 @@ def compare_timezones(timezone1: str, timezone2: str) -> str:
     try:
         tz1 = pytz.timezone(timezone1)
         tz2 = pytz.timezone(timezone2)
-        
+
         now1 = datetime.now(tz1)
         now2 = datetime.now(tz2)
-        
+
         # 计算时差
         diff = (now1.utcoffset() - now2.utcoffset()).total_seconds() / 3600
-        
+
         result = f"""时区对比：
 {timezone1}: {now1.strftime("%Y-%m-%d %H:%M:%S %Z")}
 {timezone2}: {now2.strftime("%Y-%m-%d %H:%M:%S %Z")}
@@ -161,7 +162,7 @@ def main():
     支持命令行参数配置传输方式和端口
     """
     import argparse
-    
+
     parser = argparse.ArgumentParser(description="Time Service MCP Server")
     parser.add_argument(
         "--transport",
@@ -175,15 +176,15 @@ def main():
         default=8000,
         help="HTTP服务端口（仅在streamable-http模式下有效），默认8000"
     )
-    
+
     args = parser.parse_args()
-    
+
     # 打印启动信息
     print(f"Time Service MCP Server 启动中...")
     print(f"传输方式: {args.transport}")
     if args.transport == "streamable-http":
-        print(f"访问地址: http://localhost:{args.port}/mcp")
-    
+        print(f"访问地址: http://localhost:{args.port}/mcp_tools")
+
     # 运行服务器
     if args.transport == "streamable-http":
         mcp.run(transport="streamable-http", port=args.port)
@@ -191,6 +192,6 @@ def main():
         # stdio模式下不打印到stdout，避免干扰MCP协议通信
         mcp.run()
 
+
 if __name__ == "__main__":
     main()
-
