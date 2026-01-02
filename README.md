@@ -121,12 +121,31 @@ ydc_ai_dev/
   - [✅] 1. Added context decay
   - [✅] 2. Added manuscripts and langchain team's sharing content on context engineering
   - [✅] 3. Manus - Context Engineering for AI Agents: Lessons Learned from Building Manus
+  - [✅] 4. Advanced tool usage analysis from Claude articles
 - [❌] Agent-Knowledge: Knowledge base + web search for knowledge supplementation (RAG Tools)
+
+### Claude Agent SDK Practice
+
+- [✅] Python Examples
+  - [✅] Quickstart: Basic agent usage
+  - [✅] Hooks: Pre-tool and post-tool hooks
+  - [✅] MCP Tools: Integration with Model Context Protocol
+  - [✅] Session Management: Session handling and forking
+  - [✅] Subagent: Multi-agent coordination
+- [✅] TypeScript Examples (ESM)
+  - [✅] Quickstart: Basic agent usage
+  - [✅] Hooks: Custom hooks implementation
+  - [✅] MCP Integration: Tool integration patterns
+  - [✅] Session Management: Advanced session handling
+  - [✅] Subagent: Multi-agent architecture
+- [✅] Long-running Agents Architecture: Claude's approach to persistent agent systems
 
 ### Source Code Analysis
 
 - [✅] Langchain - open_deep_research
+- [✅] Manus AI Agent - Architecture analysis and source code interpretation
 
 ### Engineering Practice Articles
 
 - [✅] 1. PostHog AI Agent development process experience and lessons learned
+- [✅] 2. Claude Long-running Agents: Architecture and practice analysis

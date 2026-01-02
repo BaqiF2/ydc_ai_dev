@@ -116,17 +116,37 @@ ydc_ai_dev/
 - [✅] Agent-工具：Function Calling 与 MCP 与 XML提示词
 - [✅] Agent-计划: 使用提示词方式引导LLM进行规划
 - [✅] Agent-记忆: 短期与长期记忆的管理(上下文工程)
-  [✅] 1. 新增了上下文腐烂
-  [✅] 2. 新增manus与langchain团队对于上下文工程的分享内容
-  [✅] 3. Manus - AI代理的上下文工程：构建Manus的经验教训
+  - [✅] 1. 新增了上下文腐烂
+  - [✅] 2. 新增manus与langchain团队对于上下文工程的分享内容
+  - [✅] 3. Manus - AI代理的上下文工程：构建Manus的经验教训
+  - [✅] 4. 从Claude文章分析高级工具的使用
 - [❌] Agent-知识：知识库 + 网络搜索进行知识的补充（RAG Tools）
 
+### Claude Agent SDK 实践
+
+- [✅] Python 示例
+  - [✅] Quickstart：基础智能体使用
+  - [✅] Hooks：前置工具钩子和后置工具钩子
+  - [✅] MCP Tools：模型上下文协议集成
+  - [✅] Session Management：会话处理和分支
+  - [✅] Subagent：多智能体协作
+- [✅] TypeScript 示例（ESM）
+  - [✅] Quickstart：基础智能体使用
+  - [✅] Hooks：自定义钩子实现
+  - [✅] MCP Integration：工具集成模式
+  - [✅] Session Management：高级会话处理
+  - [✅] Subagent：多智能体架构
+- [✅] Long-running Agents 架构：Claude的持久化智能体系统方法
+
 ### 源码解读
+
 - [✅] langchain - open_deep_research
+- [✅] Manus AI Agent - 架构剖析和源码解读
 
 ### 工程实战文章
 
 - [✅] 1. PostHog AI 智能体开发过程的经验与教训
+- [✅] 2. Claude 长期运行的智能体（Long-running Agents）：架构与实践分析
 
 
 
