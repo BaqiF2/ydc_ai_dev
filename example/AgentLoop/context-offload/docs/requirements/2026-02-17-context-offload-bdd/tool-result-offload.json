@@ -1,0 +1,266 @@
+[
+  {
+    "category": "functional",
+    "feature": "tool-result-offload",
+    "description": "将符合条件的 tool_result 内容卸载到文件并替换为路径引用",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "卸载字符数 ≥ 100 的 string 类型 tool_result",
+        "description": "当 tool_result.content 为字符串且字符数 ≥ 100 时，应写入文件并替换为路径引用",
+        "steps": {
+          "given": [
+            "一个消息数组包含 1 条 user 消息",
+            "该消息的 content 包含 1 个 type 为 tool_result 的 block",
+            "该 tool_result 的 content 为字符串，长度为 150 个字符",
+            "该 tool_result 的 tool_use_id 为 'toolu_abc123'",
+            "outputDir 为一个有效的临时目录路径"
+          ],
+          "when": [
+            "调用 offloadToolResults(messages, { outputDir })"
+          ],
+          "then": [
+            "返回的 messages 数组长度为 1",
+            "返回的 messages[0].content 中 tool_result block 的 content 为 '[Content offloaded to: ./tool-result-toolu_abc123.md]'",
+            "outputDir 下存在文件 tool-result-toolu_abc123.md",
+            "该文件内容为原始 150 字符的字符串",
+            "返回的 offloadedCount 为 1",
+            "返回的 freedChars 为 150",
+            "返回的 files 数组包含该文件的绝对路径"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "跳过字符数 < 100 的 tool_result",
+        "description": "当 tool_result.content 字符数 < 100 时，不应卸载",
+        "steps": {
+          "given": [
+            "一个消息数组包含 1 条 user 消息",
+            "该消息的 content 包含 1 个 type 为 tool_result 的 block",
+            "该 tool_result 的 content 为字符串，长度为 50 个字符"
+          ],
+          "when": [
+            "调用 offloadToolResults(messages, { outputDir })"
+          ],
+          "then": [
+            "返回的 messages 中 tool_result 的 content 保持原始 50 字符字符串不变",
+            "outputDir 下不存在任何新文件",
+            "返回的 offloadedCount 为 0",
+            "返回的 freedChars 为 0",
+            "返回的 files 为空数组"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "边界值 — 恰好 100 字符应卸载",
+        "description": "字符数恰好为 100 时满足 ≥ 100 条件，应执行卸载",
+        "steps": {
+          "given": [
+            "一个消息数组包含 1 条 user 消息",
+            "该消息的 content 包含 1 个 type 为 tool_result 的 block",
+            "该 tool_result 的 content 为字符串，长度恰好为 100 个字符"
+          ],
+          "when": [
+            "调用 offloadToolResults(messages, { outputDir })"
+          ],
+          "then": [
+            "返回的 messages 中 tool_result 的 content 被替换为文件路径引用",
+            "outputDir 下存在对应的卸载文件",
+            "返回的 offloadedCount 为 1",
+            "返回的 freedChars 为 100"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "边界值 — 99 字符不应卸载",
+        "description": "字符数为 99 时不满足 ≥ 100 条件，不应卸载",
+        "steps": {
+          "given": [
+            "一个消息数组包含 1 条 user 消息",
+            "该消息的 content 包含 1 个 type 为 tool_result 的 block",
+            "该 tool_result 的 content 为字符串，长度为 99 个字符"
+          ],
+          "when": [
+            "调用 offloadToolResults(messages, { outputDir })"
+          ],
+          "then": [
+            "返回的 messages 中 tool_result 的 content 保持原始不变",
+            "outputDir 下不存在任何新文件",
+            "返回的 offloadedCount 为 0"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "卸载 ContentBlock[] 类型的 tool_result",
+        "description": "当 tool_result.content 为 ContentBlock 数组时，使用 JSON.stringify 计算字符数",
+        "steps": {
+          "given": [
+            "一个消息数组包含 1 条 user 消息",
+            "该消息的 content 包含 1 个 type 为 tool_result 的 block",
+            "该 tool_result 的 content 为 ContentBlock[]，包含 [{ type: 'text', text: '...' }]",
+            "JSON.stringify(content) 的长度 ≥ 100"
+          ],
+          "when": [
+            "调用 offloadToolResults(messages, { outputDir })"
+          ],
+          "then": [
+            "返回的 messages 中 tool_result 的 content 被替换为文件路径引用字符串",
+            "卸载文件内容为 JSON.stringify(原始 content) 的结果",
+            "返回的 freedChars 等于 JSON.stringify(content).length"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "空消息数组",
+        "description": "传入空数组时应直接返回空结果",
+        "steps": {
+          "given": [
+            "一个空的消息数组 []"
+          ],
+          "when": [
+            "调用 offloadToolResults([], { outputDir })"
+          ],
+          "then": [
+            "返回的 messages 为空数组 []",
+            "返回的 offloadedCount 为 0",
+            "返回的 freedChars 为 0",
+            "返回的 files 为空数组 []"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "无 tool_result 的消息",
+        "description": "消息中没有 tool_result block 时应原样返回",
+        "steps": {
+          "given": [
+            "一个消息数组包含 2 条消息",
+            "消息仅包含 type 为 text 和 tool_use 的 block",
+            "没有任何 type 为 tool_result 的 block"
+          ],
+          "when": [
+            "调用 offloadToolResults(messages, { outputDir })"
+          ],
+          "then": [
+            "返回的 messages 与输入完全相同",
+            "返回的 offloadedCount 为 0",
+            "outputDir 下不存在任何新文件"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "混合场景 — 部分卸载",
+        "description": "同时包含大段和小段 tool_result 时，仅卸载大段",
+        "steps": {
+          "given": [
+            "一个消息数组包含 3 条 user 消息",
+            "第 1 条消息包含 tool_result，content 长度为 200 字符",
+            "第 2 条消息包含 tool_result，content 长度为 50 字符",
+            "第 3 条消息包含 tool_result，content 长度为 300 字符"
+          ],
+          "when": [
+            "调用 offloadToolResults(messages, { outputDir })"
+          ],
+          "then": [
+            "返回的 messages 中第 1 条和第 3 条的 tool_result 被替换为文件路径引用",
+            "第 2 条的 tool_result 保持原始 50 字符不变",
+            "返回的 offloadedCount 为 2",
+            "返回的 freedChars 为 500",
+            "返回的 files 数组包含 2 个文件路径"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "不修改原始输入数组",
+        "description": "方法应返回新数组，不修改传入的 messages",
+        "steps": {
+          "given": [
+            "一个消息数组 originalMessages 包含 1 个可卸载的 tool_result",
+            "保存原始消息的深拷贝 snapshot"
+          ],
+          "when": [
+            "调用 offloadToolResults(originalMessages, { outputDir })"
+          ],
+          "then": [
+            "originalMessages 与 snapshot 深度相等（未被修改）",
+            "返回的 messages 是一个新的数组引用"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  },
+  {
+    "category": "functional",
+    "feature": "output-directory-management",
+    "description": "自动创建输出目录并管理文件命名",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "自动创建不存在的输出目录",
+        "description": "outputDir 路径不存在时应自动递归创建",
+        "steps": {
+          "given": [
+            "outputDir 指向一个不存在的多层目录路径，如 '/tmp/test/offload/deep'",
+            "一个消息数组包含 1 个可卸载的 tool_result"
+          ],
+          "when": [
+            "调用 offloadToolResults(messages, { outputDir })"
+          ],
+          "then": [
+            "目录 '/tmp/test/offload/deep' 被自动创建",
+            "卸载文件成功写入该目录",
+            "不抛出任何异常"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "已存在的输出目录不报错",
+        "description": "outputDir 已存在时应正常写入，不报错",
+        "steps": {
+          "given": [
+            "outputDir 指向一个已存在的目录",
+            "一个消息数组包含 1 个可卸载的 tool_result"
+          ],
+          "when": [
+            "调用 offloadToolResults(messages, { outputDir })"
+          ],
+          "then": [
+            "卸载文件成功写入该目录",
+            "不抛出任何异常"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "tool_use_id 重复时文件名追加序号",
+        "description": "多个 tool_result 的 tool_use_id 相同时，文件名应追加序号避免覆盖",
+        "steps": {
+          "given": [
+            "一个消息数组包含 2 个 tool_result",
+            "两个 tool_result 的 tool_use_id 均为 'toolu_dup'",
+            "两个 tool_result 的 content 长度均 ≥ 100"
+          ],
+          "when": [
+            "调用 offloadToolResults(messages, { outputDir })"
+          ],
+          "then": [
+            "outputDir 下存在文件 tool-result-toolu_dup.md",
+            "outputDir 下存在文件 tool-result-toolu_dup-1.md",
+            "两个文件内容分别对应各自的 tool_result 原始内容",
+            "返回的 offloadedCount 为 2"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

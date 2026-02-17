@@ -1,0 +1,27 @@
+{
+  "required_dirs": [
+    "src/core",
+    "src/infrastructure",
+    "tests/unit",
+    "tests/integration",
+    "docs/adr",
+    "docs/requirements"
+  ],
+  "required_files": [
+    "package.json",
+    "tsconfig.json",
+    "vitest.config.ts",
+    "eslint.config.mjs",
+    ".dependency-cruiser.cjs",
+    "docs/architecture.md",
+    "docs/tech-stack.md",
+    "src/index.ts",
+    "src/core/types.ts",
+    "src/core/offload.ts",
+    "src/infrastructure/file-writer.ts"
+  ],
+  "test_mirror": {
+    "src_dir": "src",
+    "test_dir": "tests/unit"
+  }
+}
