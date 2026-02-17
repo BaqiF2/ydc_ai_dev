@@ -1,0 +1,291 @@
+[
+  {
+    "category": "functional",
+    "feature": "tool-result-file-offload",
+    "description": "将单条 tool_result 消息的内容写入文件并替换为路径提示字符串",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "卸载字符串类型的 tool_result 内容",
+        "description": "当 tool_result 的 content 为 string 类型时，将完整字符串写入文件并替换为路径提示",
+        "steps": {
+          "given": [
+            "一条 tool_result 消息，content 为 string 类型，内容为 1500 个字符",
+            "sessionId 为 'session-abc123'",
+            "outputDir 为 '.offload'",
+            "提供一个 FileWriter 实例"
+          ],
+          "when": [
+            "调用 offloadToolResult 函数处理该消息"
+          ],
+          "then": [
+            "返回的 OffloadResult.message 的 content 为 '[Tool result offloaded to file: <文件绝对路径>]'",
+            "返回的 OffloadResult.file 路径格式为 '.offload/session-abc123/<tool_use_id>.md'",
+            "返回的 OffloadResult.freedChars 等于原内容长度减去替换后提示字符串的长度",
+            "文件内容与原始 content 字符串完全一致"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "卸载 ContentBlock 数组类型的 tool_result 内容",
+        "description": "当 tool_result 的 content 为 ContentBlock[] 类型时，将整个数组 JSON 序列化后写入文件并替换为路径提示",
+        "steps": {
+          "given": [
+            "一条 tool_result 消息，content 为 ContentBlock[] 类型，包含多个内容块",
+            "sessionId 为 'session-abc123'",
+            "outputDir 为 '.offload'",
+            "提供一个 FileWriter 实例"
+          ],
+          "when": [
+            "调用 offloadToolResult 函数处理该消息"
+          ],
+          "then": [
+            "返回的 OffloadResult.message 的 content 为 '[Tool result offloaded to file: <文件绝对路径>]'",
+            "返回的 OffloadResult.file 路径格式为 '.offload/session-abc123/<tool_use_id>.md'",
+            "文件内容为原始 ContentBlock[] 的 JSON.stringify 序列化结果"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "替换提示字符串格式正确",
+        "description": "验证替换后的提示字符串严格遵循指定格式",
+        "steps": {
+          "given": [
+            "一条 tool_result 消息，tool_use_id 为 'toolu_abc'",
+            "sessionId 为 'sess-1'",
+            "outputDir 为 '/tmp/offload'"
+          ],
+          "when": [
+            "调用 offloadToolResult 函数处理该消息"
+          ],
+          "then": [
+            "返回的 message 的 content 匹配格式 '[Tool result offloaded to file: /tmp/offload/sess-1/toolu_abc.md]'"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  },
+  {
+    "category": "functional",
+    "feature": "file-path-generation",
+    "description": "基于 sessionId 和 tool_use_id 生成确定性的文件存储路径",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "生成正确的文件路径结构",
+        "description": "文件路径由 outputDir、sessionId 和 tool_use_id 组合而成",
+        "steps": {
+          "given": [
+            "sessionId 为 'my-session'",
+            "outputDir 为 '.offload'",
+            "tool_use_id 为 'toolu_xyz'"
+          ],
+          "when": [
+            "调用 offloadToolResult 函数"
+          ],
+          "then": [
+            "生成的文件路径为 '.offload/my-session/toolu_xyz.md'"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "目录不存在时自动创建",
+        "description": "当 outputDir/sessionId 目录不存在时，自动递归创建",
+        "steps": {
+          "given": [
+            "outputDir 为一个不存在的目录路径",
+            "sessionId 为 'new-session'"
+          ],
+          "when": [
+            "调用 offloadToolResult 函数"
+          ],
+          "then": [
+            "目录被递归创建",
+            "文件成功写入到新创建的目录中"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "相同 tool_use_id 的文件会被覆盖",
+        "description": "当同一 session 中出现相同 tool_use_id 时，后写入的文件覆盖先写入的",
+        "steps": {
+          "given": [
+            "已存在文件 '.offload/sess-1/toolu_abc.md'，内容为 'old content'",
+            "一条新的 tool_result 消息，tool_use_id 为 'toolu_abc'",
+            "sessionId 为 'sess-1'"
+          ],
+          "when": [
+            "调用 offloadToolResult 函数处理新消息"
+          ],
+          "then": [
+            "文件 '.offload/sess-1/toolu_abc.md' 的内容被更新为新的 content",
+            "旧内容被覆盖"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  },
+  {
+    "category": "functional",
+    "feature": "immutable-message-handling",
+    "description": "确保原始输入消息不被修改，返回新的消息对象",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "原始消息对象不被修改",
+        "description": "调用 offloadToolResult 后，传入的原始消息保持不变",
+        "steps": {
+          "given": [
+            "一条 tool_result 消息，content 为 2000 字符的字符串",
+            "记录原始消息的 content 引用"
+          ],
+          "when": [
+            "调用 offloadToolResult 函数处理该消息"
+          ],
+          "then": [
+            "原始消息的 content 仍然是 2000 字符的原始字符串",
+            "返回的 OffloadResult.message 是一个新的对象，与原始消息不是同一引用"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "返回的消息是深拷贝",
+        "description": "返回的消息与原始消息之间没有共享的可变引用",
+        "steps": {
+          "given": [
+            "一条 tool_result 消息，content 为 ContentBlock[] 类型"
+          ],
+          "when": [
+            "调用 offloadToolResult 函数处理该消息"
+          ],
+          "then": [
+            "修改返回的 message 不会影响原始消息",
+            "修改原始消息不会影响返回的 message"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  },
+  {
+    "category": "functional",
+    "feature": "convenient-api",
+    "description": "提供使用默认 NodeFileWriter 的简化入口函数",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "通过便捷 API 卸载 tool_result",
+        "description": "使用 options 参数的简化 API 完成卸载，内部使用默认 NodeFileWriter",
+        "steps": {
+          "given": [
+            "一条 tool_result 消息，content 为超长字符串",
+            "options 对象包含 sessionId 和 outputDir"
+          ],
+          "when": [
+            "调用便捷版 offloadToolResult(message, options) 函数"
+          ],
+          "then": [
+            "返回的 OffloadResult 结构与核心 API 一致",
+            "文件被实际写入到 outputDir/sessionId/ 目录下",
+            "文件内容与原始 content 一致"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  },
+  {
+    "category": "functional",
+    "feature": "error-handling",
+    "description": "文件写入失败时的异常处理行为",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "文件写入失败时抛出异常",
+        "description": "当 FileWriter.writeFile 抛出错误时，模块应将异常向上传播",
+        "steps": {
+          "given": [
+            "一条 tool_result 消息，content 为超长字符串",
+            "FileWriter 实例的 writeFile 方法被配置为抛出 Error('disk full')"
+          ],
+          "when": [
+            "调用 offloadToolResult 函数处理该消息"
+          ],
+          "then": [
+            "函数抛出异常",
+            "异常信息包含原始错误信息 'disk full'"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "权限不足导致写入失败",
+        "description": "当目标目录无写入权限时，模块应抛出异常",
+        "steps": {
+          "given": [
+            "一条 tool_result 消息",
+            "FileWriter 实例的 writeFile 方法被配置为抛出 Error('permission denied')"
+          ],
+          "when": [
+            "调用 offloadToolResult 函数处理该消息"
+          ],
+          "then": [
+            "函数抛出异常",
+            "异常信息包含原始错误信息 'permission denied'"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  },
+  {
+    "category": "functional",
+    "feature": "freed-chars-calculation",
+    "description": "准确计算卸载操作释放的字符数",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "正确计算字符串类型 content 释放的字符数",
+        "description": "freedChars 等于原始内容长度减去替换后提示字符串的长度",
+        "steps": {
+          "given": [
+            "一条 tool_result 消息，content 为 5000 字符的字符串",
+            "替换后的提示字符串长度为 N"
+          ],
+          "when": [
+            "调用 offloadToolResult 函数处理该消息"
+          ],
+          "then": [
+            "返回的 freedChars 等于 5000 - N"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "正确计算 ContentBlock[] 类型 content 释放的字符数",
+        "description": "freedChars 基于 JSON 序列化后的长度计算",
+        "steps": {
+          "given": [
+            "一条 tool_result 消息，content 为 ContentBlock[] 类型",
+            "JSON.stringify(content) 的长度为 L",
+            "替换后的提示字符串长度为 N"
+          ],
+          "when": [
+            "调用 offloadToolResult 函数处理该消息"
+          ],
+          "then": [
+            "返回的 freedChars 等于 L - N"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

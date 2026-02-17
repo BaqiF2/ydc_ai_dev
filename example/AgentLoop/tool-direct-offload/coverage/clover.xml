@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<coverage generated="1771336024243" clover="3.2.0">
+  <project timestamp="1771336024243" name="All files">
+    <metrics statements="49" coveredstatements="49" conditionals="11" coveredconditionals="11" methods="6" coveredmethods="6" elements="66" coveredelements="66" complexity="0" loc="49" ncloc="49" packages="2" files="3" classes="3"/>
+    <package name="core">
+      <metrics statements="41" coveredstatements="41" conditionals="10" coveredconditionals="10" methods="5" coveredmethods="5"/>
+      <file name="offload.ts" path="/Users/wuwenjun/github/ydc_ai_dev/example/AgentLoop/tool-direct-offload/src/core/offload.ts">
+        <metrics statements="41" coveredstatements="41" conditionals="9" coveredconditionals="9" methods="4" coveredmethods="4"/>
+        <line num="21" count="1" type="stmt"/>
+        <line num="24" count="1" type="stmt"/>
+        <line num="31" count="12" type="cond" truecount="1" falsecount="0"/>
+        <line num="32" count="12" type="cond" truecount="1" falsecount="0"/>
+        <line num="33" count="7" type="stmt"/>
+        <line num="34" count="7" type="cond" truecount="1" falsecount="0"/>
+        <line num="35" count="5" type="stmt"/>
+        <line num="36" count="5" type="stmt"/>
+        <line num="41" count="10" type="cond" truecount="1" falsecount="0"/>
+        <line num="42" count="10" type="stmt"/>
+        <line num="43" count="10" type="stmt"/>
+        <line num="48" count="10" type="cond" truecount="1" falsecount="0"/>
+        <line num="49" count="10" type="stmt"/>
+        <line num="50" count="10" type="stmt"/>
+        <line num="64" count="12" type="cond" truecount="1" falsecount="0"/>
+        <line num="65" count="12" type="stmt"/>
+        <line num="66" count="12" type="stmt"/>
+        <line num="67" count="12" type="stmt"/>
+        <line num="68" count="12" type="stmt"/>
+        <line num="69" count="12" type="stmt"/>
+        <line num="70" count="12" type="stmt"/>
+        <line num="73" count="12" type="stmt"/>
+        <line num="76" count="12" type="stmt"/>
+        <line num="77" count="12" type="cond" truecount="1" falsecount="0"/>
+        <line num="78" count="5" type="cond" truecount="1" falsecount="0"/>
+        <line num="79" count="5" type="stmt"/>
+        <line num="80" count="5" type="stmt"/>
+        <line num="81" count="5" type="stmt"/>
+        <line num="82" count="5" type="stmt"/>
+        <line num="87" count="12" type="stmt"/>
+        <line num="90" count="12" type="cond" truecount="1" falsecount="0"/>
+        <line num="93" count="10" type="stmt"/>
+        <line num="96" count="10" type="stmt"/>
+        <line num="99" count="10" type="stmt"/>
+        <line num="100" count="10" type="stmt"/>
+        <line num="102" count="10" type="stmt"/>
+        <line num="103" count="10" type="stmt"/>
+        <line num="104" count="10" type="stmt"/>
+        <line num="105" count="10" type="stmt"/>
+        <line num="106" count="10" type="stmt"/>
+        <line num="107" count="10" type="stmt"/>
+      </file>
+      <file name="types.ts" path="/Users/wuwenjun/github/ydc_ai_dev/example/AgentLoop/tool-direct-offload/src/core/types.ts">
+        <metrics statements="0" coveredstatements="0" conditionals="1" coveredconditionals="1" methods="1" coveredmethods="1"/>
+      </file>
+    </package>
+    <package name="infrastructure">
+      <metrics statements="8" coveredstatements="8" conditionals="1" coveredconditionals="1" methods="1" coveredmethods="1"/>
+      <file name="file-writer.ts" path="/Users/wuwenjun/github/ydc_ai_dev/example/AgentLoop/tool-direct-offload/src/infrastructure/file-writer.ts">
+        <metrics statements="8" coveredstatements="8" conditionals="1" coveredconditionals="1" methods="1" coveredmethods="1"/>
+        <line num="11" count="1" type="stmt"/>
+        <line num="12" count="1" type="stmt"/>
+        <line num="19" count="1" type="stmt"/>
+        <line num="20" count="1" type="cond" truecount="1" falsecount="0"/>
+        <line num="21" count="6" type="stmt"/>
+        <line num="22" count="6" type="stmt"/>
+        <line num="23" count="6" type="stmt"/>
+        <line num="24" count="1" type="stmt"/>
+      </file>
+    </package>
+  </project>
+</coverage>
