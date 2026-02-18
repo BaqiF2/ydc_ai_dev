@@ -672,3 +672,238 @@ describe('compactMessages', () => {
     expect(result.stats).toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Integration tests — full compactMessages pipeline
+// ---------------------------------------------------------------------------
+
+describe('compactMessages integration', () => {
+  beforeEach(() => {
+    resetCompactionCounter();
+  });
+
+  // BDD Scenario: 端到端正常压缩流程
+  it('should execute full pipeline: detect → partition → persist → summarize → assemble', async () => {
+    // 1 system + 25 user/assistant messages = 26 total
+    const messages: Message[] = [msg('system', 'You are a helpful assistant')];
+    for (let i = 0; i < 25; i++) {
+      messages.push(msg(i % 2 === 0 ? 'user' : 'assistant', `conv-${i + 1}`));
+    }
+
+    // Token sequence:
+    // 1. Total: 190000 (above 184000 threshold)
+    // 2-6. Tail scan: 5 msgs × 6000 = 30000 (>= 30000 budget), stop
+    // 7. Compacted total: 55000
+    const llm: LlmClient = {
+      countTokens: vi.fn()
+        .mockResolvedValueOnce(190000)
+        .mockResolvedValueOnce(6000)
+        .mockResolvedValueOnce(6000)
+        .mockResolvedValueOnce(6000)
+        .mockResolvedValueOnce(6000)
+        .mockResolvedValueOnce(6000)
+        .mockResolvedValueOnce(55000),
+      summarize: vi.fn().mockResolvedValueOnce('## Summary\nGoals: fix bug\nFiles: /src/app.ts'),
+    };
+    const fw = createMockFileWriter();
+    const logger = createMockLogger();
+
+    const result = await compactMessages(messages, {
+      llmClient: llm, fileWriter: fw, logger,
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+      tailRetentionRatio: 0.15, sessionId: 'integ-session',
+    });
+
+    // Compaction succeeded
+    expect(result.compacted).toBe(true);
+
+    // Message structure: [system, summary(user), tail×5] = 7
+    expect(result.messages).toHaveLength(7);
+    expect(result.messages[0].role).toBe('system');
+    expect(result.messages[0].content).toBe('You are a helpful assistant');
+    expect(result.messages[1].role).toBe('user');
+    expect(result.messages[1].content).toContain('Summary');
+    // Tail messages preserved in order
+    expect(result.messages[2].content).toBe('conv-21');
+    expect(result.messages[6].content).toBe('conv-25');
+
+    // File persistence
+    expect(result.originalMessagesPath).not.toBeNull();
+    expect(fw.write).toHaveBeenCalledTimes(1);
+
+    // Stats
+    expect(result.stats).not.toBeNull();
+    expect(result.stats!.originalTokenCount).toBe(190000);
+    expect(result.stats!.compactedTokenCount).toBe(55000);
+    expect(result.stats!.compactedMessageCount).toBe(20);
+    expect(result.stats!.retainedMessageCount).toBe(6); // 1 head + 5 tail
+  });
+
+  // BDD Scenario: token 未达阈值时不执行压缩
+  it('should not compact, call LLM, or write files when below threshold', async () => {
+    const messages = [msg('user', 'hello'), msg('assistant', 'hi')];
+    const llm: LlmClient = {
+      countTokens: vi.fn().mockResolvedValueOnce(100000),
+      summarize: vi.fn(),
+    };
+    const fw = createMockFileWriter();
+
+    const result = await compactMessages(messages, {
+      llmClient: llm, fileWriter: fw,
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+    });
+
+    expect(result.compacted).toBe(false);
+    expect(result.messages).toBe(messages); // same reference
+    expect(result.stats).toBeNull();
+    expect(result.originalMessagesPath).toBeNull();
+    expect(llm.summarize).not.toHaveBeenCalled();
+    expect(fw.write).not.toHaveBeenCalled();
+  });
+
+  // BDD Scenario: 无 Middle 区域时跳过压缩
+  it('should skip compaction when head + tail cover all messages', async () => {
+    const messages = [
+      msg('system', 'sys'),
+      msg('user', 'big message'),
+      msg('assistant', 'reply'),
+    ];
+    // Total: 190000 (above threshold), tail budget=198000 (0.99 ratio)
+    // Tail scan: reply=100000 (<198000, continue), big_message=100000 (200000>=198000, stop)
+    // → tail covers all non-system messages, middle is empty
+    const llm: LlmClient = {
+      countTokens: vi.fn()
+        .mockResolvedValueOnce(190000)
+        .mockResolvedValueOnce(100000)
+        .mockResolvedValueOnce(100000),
+      summarize: vi.fn(),
+    };
+    const fw = createMockFileWriter();
+    const logger = createMockLogger();
+
+    const result = await compactMessages(messages, {
+      llmClient: llm, fileWriter: fw, logger,
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+      tailRetentionRatio: 0.99,
+    });
+
+    expect(result.compacted).toBe(false);
+    expect(llm.summarize).not.toHaveBeenCalled();
+  });
+
+  // BDD Scenario: 多次压缩叠加
+  it('should compact previously summarized messages in second compaction', async () => {
+    // --- First compaction ---
+    const messages1 = [
+      msg('system', 'sys'),
+      msg('user', 'u1'),
+      msg('user', 'u2'),
+      msg('assistant', 'reply1'),
+    ];
+    const llm1: LlmClient = {
+      countTokens: vi.fn()
+        .mockResolvedValueOnce(190000) // total
+        .mockResolvedValueOnce(30000)  // tail: reply1
+        .mockResolvedValueOnce(50000), // compacted
+      summarize: vi.fn().mockResolvedValueOnce('Summary of first session'),
+    };
+    const fw1 = createMockFileWriter();
+
+    const result1 = await compactMessages(messages1, {
+      llmClient: llm1, fileWriter: fw1, logger: createMockLogger(),
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+      tailRetentionRatio: 0.15, sessionId: 'multi',
+    });
+    expect(result1.compacted).toBe(true);
+    // result1.messages = [sys, "Summary of first session", reply1]
+
+    // --- Simulate continued conversation, then second compaction ---
+    const messages2 = [
+      ...result1.messages,
+      msg('user', 'new_u1'),
+      msg('user', 'new_u2'),
+      msg('assistant', 'new_reply'),
+    ];
+    // messages2 = [sys, summary1, reply1, new_u1, new_u2, new_reply] (6 msgs)
+    const llm2: LlmClient = {
+      countTokens: vi.fn()
+        .mockResolvedValueOnce(190000)  // total
+        .mockResolvedValueOnce(15000)   // tail: new_reply
+        .mockResolvedValueOnce(15000)   // tail: new_u2 → 30000 >= 30000, stop
+        .mockResolvedValueOnce(45000),  // compacted
+      summarize: vi.fn().mockResolvedValueOnce('Condensed summary including prior summary'),
+    };
+    const fw2 = createMockFileWriter();
+
+    const result2 = await compactMessages(messages2, {
+      llmClient: llm2, fileWriter: fw2, logger: createMockLogger(),
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+      tailRetentionRatio: 0.15, sessionId: 'multi',
+    });
+
+    expect(result2.compacted).toBe(true);
+    // First summary was in middle and got compacted
+    expect(result2.messages[1].content).toBe('Condensed summary including prior summary');
+    // Sequence incremented
+    const path2 = (fw2.write as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(path2).toMatch(/-2\.json$/);
+  });
+
+  // BDD Scenario: 与 offload 组合使用
+  it('should compact messages containing offloaded tool_result references', async () => {
+    const messages: Message[] = [
+      msg('system', 'sys'),
+      msg('user', 'analyze this file'),
+      {
+        role: 'assistant',
+        content: [
+          { type: 'tool_use', id: 't1', name: 'readFile', input: { path: '/src/big.ts' } },
+        ],
+      },
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 't1',
+            content: '[Content offloaded to /tmp/offload-001.txt]',
+          },
+        ],
+      },
+      msg('assistant', 'analysis complete'),
+      msg('user', 'fix the bug'),
+      msg('assistant', 'bug fixed'),
+    ];
+
+    // Token sequence:
+    // 1. Total: 185000 (above 184000 threshold)
+    // 2. Tail scan: 'bug fixed'=15000, 'fix the bug'=15000 → 30000 >= 30000, stop
+    // 3. Compacted total: 40000
+    const llm: LlmClient = {
+      countTokens: vi.fn()
+        .mockResolvedValueOnce(185000)
+        .mockResolvedValueOnce(15000)
+        .mockResolvedValueOnce(15000)
+        .mockResolvedValueOnce(40000),
+      summarize: vi.fn().mockResolvedValueOnce(
+        '## Summary\nFiles: /src/big.ts (offloaded to /tmp/offload-001.txt)\nActions: analyzed and fixed bug',
+      ),
+    };
+    const fw = createMockFileWriter();
+
+    const result = await compactMessages(messages, {
+      llmClient: llm, fileWriter: fw, logger: createMockLogger(),
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+      tailRetentionRatio: 0.15,
+    });
+
+    expect(result.compacted).toBe(true);
+    // Summary contains offload reference
+    expect(result.messages[1].content).toContain('offload');
+
+    // Verify offloaded content was passed to LLM for summarization
+    const summarizeCall = (llm.summarize as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(summarizeCall).toContain('offload');
+    expect(summarizeCall).toContain('/tmp/offload-001.txt');
+  });
+});
