@@ -70,8 +70,8 @@ Test root:          tests/
 |---|---------|--------|-----------|--------|
 | 1.1 | F-002 Compact Trigger | core/compact | 5 | Done |
 | 1.2 | F-003 Message Partitioning | core/compact | 6 | Done |
-| 1.3 | F-004 Summary Generation | core/summarizer | 5 | In Progress |
-| 1.4 | F-005 Message Assembly | core/compact | 4 | Pending |
+| 1.3 | F-004 Summary Generation | core/summarizer | 5 | Done |
+| 1.4 | F-005 Message Assembly | core/compact | 4 | In Progress |
 | 1.5 | F-006 Message Persistence | infrastructure/file-writer | 4 | Pending |
 | 1.6 | F-007 Fault Tolerance | core/compact + infrastructure/llm-client | 4 | Pending |
 
@@ -178,6 +178,8 @@ E2E smoke tests are not applicable — this is a library module with no protocol
 | F-002 Compact Trigger | In Progress | Done | 5/5 scenarios, commit 93f6a34 |
 | F-003 Message Partitioning | Pending | In Progress | Starting RED phase |
 | F-003 Message Partitioning | In Progress | Done | 6/6 scenarios, commit eca3183 |
+| F-004 Summary Generation | Pending | In Progress | Starting RED phase |
+| F-004 Summary Generation | In Progress | Done | 5/5 scenarios, commit 17e1275 |
 
 ## Final Verification Checklist
 

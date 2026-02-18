@@ -218,36 +218,61 @@ describe('partitionMessages', () => {
 });
 
 describe('assembleMessages', () => {
-  it('should create [head, summary, tail] in order', () => {
+  // BDD Scenario: 正常组装：Head + 摘要 + Tail
+  it('should assemble head(1) + summary + tail(5) into 7 messages in order', () => {
     const head = [msg('system', 'sys')];
-    const tail = [msg('user', 'recent'), msg('assistant', 'reply')];
-    const result = assembleMessages(head, 'My summary', tail);
+    const tail = [
+      msg('user', 't1'), msg('assistant', 't2'),
+      msg('user', 't3'), msg('assistant', 't4'),
+      msg('user', 't5'),
+    ];
+    const result = assembleMessages(head, 'Summary text', tail);
 
-    expect(result).toHaveLength(4);
+    expect(result).toHaveLength(7);
     expect(result[0].role).toBe('system');
     expect(result[1].role).toBe('user');
-    expect(result[1].content).toBe('My summary');
-    expect(result[2].content).toBe('recent');
-    expect(result[3].content).toBe('reply');
+    expect(result[1].content).toBe('Summary text');
+    expect(result[2].content).toBe('t1');
+    expect(result[6].content).toBe('t5');
   });
 
+  // BDD Scenario: Head 为空时摘要消息为第一条
   it('should put summary first when head is empty', () => {
-    const result = assembleMessages([], 'Summary', [msg('user', 'last')]);
-    expect(result).toHaveLength(2);
+    const tail = [msg('user', 't1'), msg('assistant', 't2'), msg('user', 't3')];
+    const result = assembleMessages([], 'Summary text', tail);
+
+    expect(result).toHaveLength(4);
     expect(result[0].role).toBe('user');
-    expect(result[0].content).toBe('Summary');
+    expect(result[0].content).toBe('Summary text');
+    expect(result[1].content).toBe('t1');
+    expect(result[3].content).toBe('t3');
   });
 
+  // BDD Scenario: 不可变性：输入数组不被修改
   it('should not mutate input arrays', () => {
     const head = [msg('system', 'sys')];
-    const tail = [msg('user', 'last')];
-    const headLen = head.length;
-    const tailLen = tail.length;
+    const tail = [msg('user', 'a'), msg('assistant', 'b'), msg('user', 'c')];
+    const headSnapshot = [...head];
+    const tailSnapshot = [...tail];
 
-    assembleMessages(head, 'Summary', tail);
+    const result = assembleMessages(head, 'Summary', tail);
 
-    expect(head).toHaveLength(headLen);
-    expect(tail).toHaveLength(tailLen);
+    expect(result).not.toBe(head);
+    expect(result).not.toBe(tail);
+    expect(head).toHaveLength(headSnapshot.length);
+    expect(tail).toHaveLength(tailSnapshot.length);
+    expect(head[0].content).toBe(headSnapshot[0].content);
+    expect(tail[0].content).toBe(tailSnapshot[0].content);
+  });
+
+  // BDD Scenario: 摘要消息格式正确
+  it('should create summary message with role user and exact content', () => {
+    const summaryText = '这是会话摘要内容';
+    const result = assembleMessages([], summaryText, [msg('user', 'last')]);
+
+    const summaryMsg = result[0];
+    expect(summaryMsg.role).toBe('user');
+    expect(summaryMsg.content).toBe(summaryText);
   });
 });
 
