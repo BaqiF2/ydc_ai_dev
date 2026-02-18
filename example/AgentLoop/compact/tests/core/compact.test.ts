@@ -470,4 +470,148 @@ describe('compactMessages', () => {
       expect.objectContaining({ error: expect.stringContaining('Permission denied') }),
     );
   });
+
+  // BDD Scenario: F-007 首次调用成功无需重试
+  it('should compact successfully on first LLM call without retries', async () => {
+    const messages = [
+      msg('system', 'sys'),
+      msg('user', 'u1'),
+      msg('user', 'u2'),
+      msg('assistant', 'reply'),
+    ];
+    const llm: LlmClient = {
+      countTokens: vi.fn()
+        .mockResolvedValueOnce(190000)  // total
+        .mockResolvedValueOnce(30000)   // tail scan
+        .mockResolvedValueOnce(50000),  // compacted total
+      summarize: vi.fn().mockResolvedValueOnce('First try summary'),
+    };
+    const fw = createMockFileWriter();
+    const logger = createMockLogger();
+
+    const result = await compactMessages(messages, {
+      llmClient: llm, fileWriter: fw, logger,
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+      tailRetentionRatio: 0.15, maxRetries: 2,
+    });
+
+    expect(result.compacted).toBe(true);
+    expect(llm.summarize).toHaveBeenCalledTimes(1);
+    expect(logger.warn).not.toHaveBeenCalled();
+  });
+
+  // BDD Scenario: F-007 首次失败后重试成功
+  it('should retry and succeed on second LLM call', async () => {
+    try {
+      vi.useFakeTimers();
+
+      const messages = [
+        msg('system', 'sys'),
+        msg('user', 'u1'),
+        msg('user', 'u2'),
+        msg('assistant', 'reply'),
+      ];
+      const llm: LlmClient = {
+        countTokens: vi.fn()
+          .mockResolvedValueOnce(190000)
+          .mockResolvedValueOnce(30000)
+          .mockResolvedValueOnce(50000),
+        summarize: vi.fn()
+          .mockRejectedValueOnce(new Error('Network error'))
+          .mockResolvedValueOnce('Retry success summary'),
+      };
+      const fw = createMockFileWriter();
+      const logger = createMockLogger();
+
+      const promise = compactMessages(messages, {
+        llmClient: llm, fileWriter: fw, logger,
+        contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+        tailRetentionRatio: 0.15, maxRetries: 2,
+      });
+
+      await vi.advanceTimersByTimeAsync(2000);
+      const result = await promise;
+
+      expect(result.compacted).toBe(true);
+      expect(llm.summarize).toHaveBeenCalledTimes(2);
+      expect(logger.warn).toHaveBeenCalledWith(
+        'Summarization attempt failed',
+        expect.objectContaining({ attempt: 1, totalAttempts: 3 }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // BDD Scenario: F-007 全部重试失败后跳过压缩
+  it('should skip compaction after all retry attempts fail', async () => {
+    try {
+      vi.useFakeTimers();
+
+      const messages = [
+        msg('system', 'sys'),
+        msg('user', 'u1'),
+        msg('user', 'u2'),
+        msg('assistant', 'reply'),
+      ];
+      const llm: LlmClient = {
+        countTokens: vi.fn()
+          .mockResolvedValueOnce(190000)
+          .mockResolvedValueOnce(30000),
+        summarize: vi.fn()
+          .mockRejectedValueOnce(new Error('fail 1'))
+          .mockRejectedValueOnce(new Error('fail 2'))
+          .mockRejectedValueOnce(new Error('fail 3')),
+      };
+      const fw = createMockFileWriter();
+      const logger = createMockLogger();
+
+      const promise = compactMessages(messages, {
+        llmClient: llm, fileWriter: fw, logger,
+        contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+        tailRetentionRatio: 0.15, maxRetries: 2,
+      });
+
+      await vi.advanceTimersByTimeAsync(5000);
+      const result = await promise;
+
+      expect(result.compacted).toBe(false);
+      expect(result.messages).toBe(messages);
+      expect(llm.summarize).toHaveBeenCalledTimes(3);
+      expect(logger.warn).toHaveBeenCalledTimes(3);
+      expect(logger.error).toHaveBeenCalledWith(
+        'All summarization attempts failed, skipping compaction',
+        expect.objectContaining({ totalAttempts: 3 }),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // BDD Scenario: F-007 COMPACT_MAX_RETRIES 为 0 时不重试
+  it('should not retry when maxRetries is 0', async () => {
+    const messages = [
+      msg('system', 'sys'),
+      msg('user', 'u1'),
+      msg('user', 'u2'),
+      msg('assistant', 'reply'),
+    ];
+    const llm: LlmClient = {
+      countTokens: vi.fn()
+        .mockResolvedValueOnce(190000)
+        .mockResolvedValueOnce(30000),
+      summarize: vi.fn().mockRejectedValueOnce(new Error('LLM unavailable')),
+    };
+    const fw = createMockFileWriter();
+    const logger = createMockLogger();
+
+    const result = await compactMessages(messages, {
+      llmClient: llm, fileWriter: fw, logger,
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+      tailRetentionRatio: 0.15, maxRetries: 0,
+    });
+
+    expect(result.compacted).toBe(false);
+    expect(llm.summarize).toHaveBeenCalledTimes(1);
+  });
 });
