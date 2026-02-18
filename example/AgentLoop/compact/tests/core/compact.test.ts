@@ -110,54 +110,110 @@ describe('shouldCompact', () => {
 });
 
 describe('partitionMessages', () => {
-  it('should put system messages in head', async () => {
-    const llm = createMockLlmClient([100, 100, 100]);
+  // BDD Scenario: 正常分区：system + 多条消息
+  it('should partition into head(1 system) + middle(7) + tail(3)', async () => {
     const messages = [
-      msg('system', 'You are a helper'),
-      msg('user', 'hello'),
-      msg('assistant', 'hi'),
+      msg('system', 'system prompt'),
+      msg('user', 'u1'), msg('assistant', 'a1'),
+      msg('user', 'u2'), msg('assistant', 'a2'),
+      msg('user', 'u3'), msg('assistant', 'a3'),
+      msg('user', 'u4'),
+      msg('user', 'u5'), msg('assistant', 'a5'),
+      msg('user', 'u6'),
     ];
+    // 11 messages: 1 system + 10 non-system
+    // Tail scan from end: u6=10000, a5=10000, u5=10000 → 30000 >= 30000, stop
+    const llm = createMockLlmClient([10000, 10000, 10000]);
 
-    const result = await partitionMessages(messages, 200, llm);
+    const result = await partitionMessages(messages, 30000, llm);
     expect(result.head).toHaveLength(1);
     expect(result.head[0].role).toBe('system');
+    expect(result.tail).toHaveLength(3);
+    expect(result.middle).toHaveLength(7);
   });
 
-  it('should have empty head when no system messages', async () => {
-    const llm = createMockLlmClient([100, 100]);
+  // BDD Scenario: 无 system 消息时 Head 为空
+  it('should have empty head when first message is user', async () => {
     const messages = [
-      msg('user', 'hello'),
-      msg('assistant', 'hi'),
+      msg('user', 'u1'), msg('assistant', 'a1'),
+      msg('user', 'u2'), msg('assistant', 'a2'),
+      msg('user', 'u3'),
     ];
+    // Tail scan: u3=5000 >= 5000, stop
+    const llm = createMockLlmClient([5000]);
 
-    const result = await partitionMessages(messages, 50, llm);
+    const result = await partitionMessages(messages, 5000, llm);
     expect(result.head).toHaveLength(0);
+    expect(result.middle.length + result.tail.length).toBe(5);
   });
 
-  it('should retain tail messages based on token budget', async () => {
-    const llm = createMockLlmClient([100, 100, 100, 150]);
+  // BDD Scenario: 多条 system 消息全部归入 Head
+  it('should put all consecutive system messages in head', async () => {
     const messages = [
-      msg('system', 'sys'),
-      msg('user', 'msg1'),
-      msg('user', 'msg2'),
-      msg('assistant', 'msg3'),
+      msg('system', 'sys1'),
+      msg('system', 'sys2'),
+      msg('user', 'u1'),
+      msg('assistant', 'a1'),
+      msg('user', 'u2'),
     ];
+    // Tail scan: u2=5000, a1=5000 → 10000 >= 10000, stop
+    const llm = createMockLlmClient([5000, 5000]);
 
-    // Tail budget of 150: last message (150 tokens) fills the budget
-    const result = await partitionMessages(messages, 150, llm);
-    expect(result.tail.length).toBeGreaterThanOrEqual(1);
-  });
-
-  it('should have empty middle when all messages fit in head + tail', async () => {
-    const llm = createMockLlmClient([100, 100]);
-    const messages = [
-      msg('system', 'sys'),
-      msg('user', 'hello'),
-    ];
-
-    // Tail budget large enough to cover the user message
     const result = await partitionMessages(messages, 10000, llm);
+    expect(result.head).toHaveLength(2);
+    expect(result.head[0].role).toBe('system');
+    expect(result.head[1].role).toBe('system');
+    expect(result.middle.every(m => m.role !== 'system')).toBe(true);
+    expect(result.tail.every(m => m.role !== 'system')).toBe(true);
+  });
+
+  // BDD Scenario: Head + Tail 覆盖所有消息，Middle 为空
+  it('should have empty middle when tail budget covers all non-system messages', async () => {
+    const messages = [
+      msg('system', 'sys'),
+      msg('user', 'u1'),
+      msg('assistant', 'a1'),
+      msg('user', 'u2'),
+    ];
+    // Tail scan: u2=1000, a1=1000, u1=1000 → 3000, all consumed before budget 100000
+    const llm = createMockLlmClient([1000, 1000, 1000]);
+
+    const result = await partitionMessages(messages, 100000, llm);
+    expect(result.head).toHaveLength(1);
+    expect(result.head[0].role).toBe('system');
+    expect(result.tail).toHaveLength(3);
     expect(result.middle).toHaveLength(0);
+  });
+
+  // BDD Scenario: Tail 扫描不截断消息
+  it('should not truncate messages when tail scan exceeds budget', async () => {
+    const messages = [
+      msg('system', 'sys'),
+      msg('user', 'u1'),
+      msg('assistant', 'a1'),
+      msg('user', 'u2'),
+      msg('assistant', 'a2'),
+    ];
+    // Tail scan: a2=8000 (<10000, continue), u2=5000 (8000+5000=13000>=10000, stop)
+    // Both messages included in tail despite total exceeding budget
+    const llm = createMockLlmClient([8000, 5000]);
+
+    const result = await partitionMessages(messages, 10000, llm);
+    expect(result.tail).toHaveLength(2);
+    expect(result.tail[0].content).toBe('u2');
+    expect(result.tail[1].content).toBe('a2');
+  });
+
+  // BDD Scenario: 只有一条消息时归入 Tail
+  it('should put single message in tail with empty head and middle', async () => {
+    const messages = [msg('user', 'only message')];
+    const llm = createMockLlmClient([500]);
+
+    const result = await partitionMessages(messages, 100, llm);
+    expect(result.head).toHaveLength(0);
+    expect(result.middle).toHaveLength(0);
+    expect(result.tail).toHaveLength(1);
+    expect(result.tail[0].content).toBe('only message');
   });
 });
 
