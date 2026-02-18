@@ -160,4 +160,4 @@ ydc_ai_dev/
 - [✅] [compact](example/AgentLoop/compact/) - Context compression: Generate structured summaries of intermediate history via independent LLM calls to free up token space
 - [✅] [context-offload](example/AgentLoop/context-offload/) - Context offloading: Write large `tool_result` content to files, replacing with file path references
 - [✅] [tool-direct-offload](example/AgentLoop/tool-direct-offload/) - Tool result direct offloading: As Agent Loop middleware, write oversized content to files before returning to LLM
-- [✅] [todo-list](example/AgentLoop/todo-list/) - Tool teaching example: Aligned with Anthropic Claude API standard format + Claude Code TodoWrite pattern, demonstrating tool definition (`input_schema`), `tool_use_id` association, async Handler, Zod validation, and `tool_result` standard return
+- [✅] [todo-list](example/AgentLoop/tools-list/) - Tool teaching example: Aligned with Anthropic Claude API standard format + Claude Code TodoWrite pattern, demonstrating tool definition (`input_schema`), `tool_use_id` association, async Handler, Zod validation, and `tool_result` standard return

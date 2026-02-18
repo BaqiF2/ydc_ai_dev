@@ -158,7 +158,7 @@ ydc_ai_dev/
 - [✅] [compact](example/AgentLoop/compact/) - 上下文压缩：通过独立 LLM 调用将中间历史消息生成结构化摘要，替换原始消息以释放 token 空间
 - [✅] [context-offload](example/AgentLoop/context-offload/) - 上下文卸载：将历史消息中 `tool_result` 的大段内容写入文件，替换为文件路径引用
 - [✅] [tool-direct-offload](example/AgentLoop/tool-direct-offload/) - 工具结果直接卸载：作为 Agent Loop 中间件，在工具执行结果返回 LLM 之前将超长内容写入文件
-- [✅] [todo-list](example/AgentLoop/todo-list/) - 工具教学示例：对齐 Anthropic Claude API 标准格式 + Claude Code TodoWrite 模式，展示工具定义（`input_schema`）、`tool_use_id` 关联、异步 Handler、Zod 校验和 `tool_result` 标准返回
+- [✅] [todo-list](example/AgentLoop/tools-list/) - 工具教学示例：对齐 Anthropic Claude API 标准格式 + Claude Code TodoWrite 模式，展示工具定义（`input_schema`）、`tool_use_id` 关联、异步 Handler、Zod 校验和 `tool_result` 标准返回
 
 
 
