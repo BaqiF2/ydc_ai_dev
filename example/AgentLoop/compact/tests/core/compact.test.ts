@@ -369,4 +369,105 @@ describe('compactMessages', () => {
 
     expect(result.compacted).toBe(false);
   });
+
+  // BDD Scenario: F-006 正常持久化原始消息
+  it('should persist middle messages as indented JSON with correct path format', async () => {
+    const messages = [
+      msg('system', 'sys'),
+      msg('user', 'u1'),
+      msg('user', 'u2'),
+      msg('assistant', 'reply'),
+    ];
+    // Call sequence: total=190000, tail scan: reply=30000 (>=30000 stop), compacted=50000
+    const llm = createMockLlmClient([190000, 30000, 50000], 'Summary');
+    const fw = createMockFileWriter();
+    const logger = createMockLogger();
+
+    const result = await compactMessages(messages, {
+      llmClient: llm,
+      fileWriter: fw,
+      logger,
+      contextTokenLimit: 200000,
+      compactThresholdRatio: 0.92,
+      tailRetentionRatio: 0.15,
+      outputDir: '.compact',
+      sessionId: 'session-abc123',
+    });
+
+    expect(fw.write).toHaveBeenCalledTimes(1);
+    const [filePath, content] = (fw.write as ReturnType<typeof vi.fn>).mock.calls[0];
+
+    // Path format: .compact/session-abc123/compact-<timestamp>-1.json
+    expect(filePath).toMatch(/^\.compact\/session-abc123\/compact-.+-1\.json$/);
+
+    // Content is indented JSON of middle messages [u1, u2]
+    const parsed = JSON.parse(content);
+    expect(parsed).toHaveLength(2);
+    expect(content).toContain('  ');
+
+    // Result returns the file path
+    expect(result.originalMessagesPath).toBe(filePath);
+  });
+
+  // BDD Scenario: F-006 多次压缩生成递增序号的文件
+  it('should increment sequence number on multiple compactions', async () => {
+    const makeMessages = () => [
+      msg('system', 'sys'),
+      msg('user', 'u1'),
+      msg('user', 'u2'),
+      msg('assistant', 'reply'),
+    ];
+
+    // First compaction
+    const llm1 = createMockLlmClient([190000, 30000, 50000], 'Summary1');
+    const fw1 = createMockFileWriter();
+    await compactMessages(makeMessages(), {
+      llmClient: llm1, fileWriter: fw1, logger: createMockLogger(),
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+      tailRetentionRatio: 0.15, sessionId: 'test',
+    });
+
+    // Second compaction (counter persists within same beforeEach scope)
+    const llm2 = createMockLlmClient([190000, 30000, 50000], 'Summary2');
+    const fw2 = createMockFileWriter();
+    await compactMessages(makeMessages(), {
+      llmClient: llm2, fileWriter: fw2, logger: createMockLogger(),
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+      tailRetentionRatio: 0.15, sessionId: 'test',
+    });
+
+    const path1 = (fw1.write as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const path2 = (fw2.write as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+
+    expect(path1).toMatch(/-1\.json$/);
+    expect(path2).toMatch(/-2\.json$/);
+  });
+
+  // BDD Scenario: F-006 文件写入失败不阻塞压缩流程
+  it('should continue compaction when file write fails', async () => {
+    const messages = [
+      msg('system', 'sys'),
+      msg('user', 'u1'),
+      msg('user', 'u2'),
+      msg('assistant', 'reply'),
+    ];
+    const llm = createMockLlmClient([190000, 30000, 50000], 'Summary');
+    const fw: FileWriter = {
+      write: vi.fn(async () => { throw new Error('Permission denied'); }),
+    };
+    const logger = createMockLogger();
+
+    const result = await compactMessages(messages, {
+      llmClient: llm, fileWriter: fw, logger,
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+      tailRetentionRatio: 0.15,
+    });
+
+    expect(result.compacted).toBe(true);
+    expect(result.originalMessagesPath).toBeNull();
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to persist original messages',
+      expect.objectContaining({ error: expect.stringContaining('Permission denied') }),
+    );
+  });
 });
