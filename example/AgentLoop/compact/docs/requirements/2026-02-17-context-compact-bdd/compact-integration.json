@@ -1,0 +1,116 @@
+[
+  {
+    "category": "functional",
+    "feature": "Compact Integration",
+    "description": "compactMessages 端到端集成场景：完整压缩流程的集成测试",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "端到端正常压缩流程",
+        "description": "完整的压缩流程：检测→分区→持久化→摘要→组装→返回",
+        "steps": {
+          "given": [
+            "消息列表包含 1 条 system 消息和 25 条 user/assistant/tool 消息",
+            "token 总量为 190000，超过 184000 阈值",
+            "TAIL_RETENTION_RATIO 为 0.15（预算 30000 token）",
+            "LLM 摘要服务正常可用"
+          ],
+          "when": [
+            "调用 compactMessages 函数"
+          ],
+          "then": [
+            "返回压缩后的消息列表",
+            "第 1 条消息为原始 system 消息",
+            "第 2 条消息为 role: user 的摘要消息",
+            "后续消息为原始尾部保留消息",
+            "compacted 为 true",
+            "originalMessagesPath 指向一个有效的 JSON 文件",
+            "stats 包含正确的压缩统计"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "token 未达阈值时不执行压缩",
+        "description": "token 总量低于阈值，直接返回原始消息列表",
+        "steps": {
+          "given": [
+            "消息列表 token 总量为 100000",
+            "阈值为 184000"
+          ],
+          "when": [
+            "调用 compactMessages 函数"
+          ],
+          "then": [
+            "返回原始消息列表（引用相同）",
+            "compacted 为 false",
+            "stats 为 null",
+            "originalMessagesPath 为 null",
+            "不调用 LLM",
+            "不写入文件"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "无 Middle 区域时跳过压缩",
+        "description": "消息很少，Head + Tail 覆盖全部消息，无压缩目标",
+        "steps": {
+          "given": [
+            "消息列表包含 1 条 system 消息和 2 条其他消息",
+            "token 总量为 190000（某条消息特别大）",
+            "尾部预算覆盖了全部非 system 消息"
+          ],
+          "when": [
+            "调用 compactMessages 函数"
+          ],
+          "then": [
+            "返回原始消息列表",
+            "compacted 为 false",
+            "不调用 LLM"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "多次压缩叠加",
+        "description": "第一次压缩后继续对话，再次超阈值触发第二次压缩",
+        "steps": {
+          "given": [
+            "第一次压缩已完成，消息列表包含 system + 摘要消息 + 后续新消息",
+            "token 总量再次达到 184000 阈值"
+          ],
+          "when": [
+            "第二次调用 compactMessages 函数"
+          ],
+          "then": [
+            "第一次的摘要消息也被纳入 Middle 参与压缩",
+            "生成新的更浓缩的摘要",
+            "持久化文件 sequence 为 2",
+            "compacted 为 true"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "与 offload 组合使用",
+        "description": "先 offload 再 compact 的组合场景",
+        "steps": {
+          "given": [
+            "消息列表经过 offload 处理后，大型 tool_result 已被替换为文件引用",
+            "offload 后 token 总量仍为 185000，超过阈值"
+          ],
+          "when": [
+            "对 offload 后的消息列表调用 compactMessages 函数"
+          ],
+          "then": [
+            "正常执行压缩",
+            "摘要中包含 offload 引用路径信息",
+            "compacted 为 true"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

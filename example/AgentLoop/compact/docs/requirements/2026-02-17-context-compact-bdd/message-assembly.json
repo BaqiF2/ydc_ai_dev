@@ -1,0 +1,88 @@
+[
+  {
+    "category": "functional",
+    "feature": "Message Assembly",
+    "description": "F-005: 将 Head、摘要消息、Tail 组装为新的消息列表",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "正常组装：Head + 摘要 + Tail",
+        "description": "将三部分按顺序组装为新消息列表",
+        "steps": {
+          "given": [
+            "head 包含 1 条 system 消息",
+            "summary 为一段摘要文本",
+            "tail 包含 5 条保留消息"
+          ],
+          "when": [
+            "执行消息组装"
+          ],
+          "then": [
+            "返回包含 7 条消息的新数组",
+            "第 1 条为 system 消息",
+            "第 2 条为 role: user 的摘要消息，content 为摘要文本",
+            "第 3-7 条为原 tail 消息，顺序不变"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "Head 为空时摘要消息为第一条",
+        "description": "无 system 消息时，摘要消息排在最前面",
+        "steps": {
+          "given": [
+            "head 为空数组",
+            "summary 为一段摘要文本",
+            "tail 包含 3 条消息"
+          ],
+          "when": [
+            "执行消息组装"
+          ],
+          "then": [
+            "返回包含 4 条消息的新数组",
+            "第 1 条为 role: user 的摘要消息",
+            "第 2-4 条为原 tail 消息"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "不可变性：输入数组不被修改",
+        "description": "组装操作返回新数组，不修改任何输入参数",
+        "steps": {
+          "given": [
+            "head 数组有 1 条消息",
+            "tail 数组有 3 条消息",
+            "记录 head 和 tail 的原始长度和内容"
+          ],
+          "when": [
+            "执行消息组装"
+          ],
+          "then": [
+            "返回一个新的数组实例",
+            "原始 head 数组的长度和内容未改变",
+            "原始 tail 数组的长度和内容未改变"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "摘要消息格式正确",
+        "description": "摘要消息的 role 和 content 格式符合规范",
+        "steps": {
+          "given": [
+            "summary 文本为 \"这是会话摘要内容\""
+          ],
+          "when": [
+            "执行消息组装"
+          ],
+          "then": [
+            "摘要消息的 role 为 \"user\"",
+            "摘要消息的 content 为传入的 summary 文本字符串"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

@@ -1,0 +1,84 @@
+[
+  {
+    "category": "functional",
+    "feature": "Message Persistence",
+    "description": "F-006: 压缩前将被压缩的 Middle 区域原始消息保存到本地 JSON 文件",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "正常持久化原始消息",
+        "description": "将 Middle 消息序列化为 JSON 并保存到指定路径",
+        "steps": {
+          "given": [
+            "Middle 区域包含 15 条消息",
+            "outputDir 为 \".compact\"",
+            "sessionId 为 \"session-abc123\""
+          ],
+          "when": [
+            "执行原始消息持久化"
+          ],
+          "then": [
+            "在 .compact/session-abc123/ 目录下生成一个 JSON 文件",
+            "文件名格式为 compact-<timestamp>-1.json",
+            "文件内容为 15 条消息的 JSON 序列化",
+            "JSON 带有缩进格式",
+            "返回文件的完整路径"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "自动创建不存在的父目录",
+        "description": "输出目录不存在时自动创建",
+        "steps": {
+          "given": [
+            "outputDir 指向一个不存在的目录路径"
+          ],
+          "when": [
+            "执行原始消息持久化"
+          ],
+          "then": [
+            "自动创建所有必要的父目录",
+            "文件成功写入"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "多次压缩生成递增序号的文件",
+        "description": "同一会话中多次压缩，sequence 自增",
+        "steps": {
+          "given": [
+            "同一 sessionId 下已经存在 compact-<timestamp>-1.json"
+          ],
+          "when": [
+            "第二次执行原始消息持久化"
+          ],
+          "then": [
+            "生成新文件，sequence 为 2",
+            "文件名格式为 compact-<timestamp>-2.json"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "文件写入失败不阻塞压缩流程",
+        "description": "持久化失败时记录错误日志，但不影响压缩结果",
+        "steps": {
+          "given": [
+            "outputDir 指向一个无写入权限的目录"
+          ],
+          "when": [
+            "执行原始消息持久化"
+          ],
+          "then": [
+            "记录错误日志",
+            "不抛出异常",
+            "压缩流程继续执行"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

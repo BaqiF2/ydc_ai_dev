@@ -1,0 +1,89 @@
+[
+  {
+    "category": "reliability",
+    "feature": "Fault Tolerance",
+    "description": "F-007: LLM 摘要调用失败时的重试和降级策略",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "首次调用成功无需重试",
+        "description": "LLM 调用首次成功时直接返回结果",
+        "steps": {
+          "given": [
+            "LLM 服务正常可用",
+            "COMPACT_MAX_RETRIES 设为 2"
+          ],
+          "when": [
+            "调用 compactMessages 函数"
+          ],
+          "then": [
+            "LLM 仅被调用 1 次",
+            "返回压缩后的消息列表",
+            "compacted 为 true"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "首次失败后重试成功",
+        "description": "LLM 首次调用失败，第二次重试成功",
+        "steps": {
+          "given": [
+            "LLM 第一次调用返回网络错误",
+            "LLM 第二次调用正常返回",
+            "COMPACT_MAX_RETRIES 设为 2"
+          ],
+          "when": [
+            "调用 compactMessages 函数"
+          ],
+          "then": [
+            "LLM 被调用 2 次",
+            "返回压缩后的消息列表",
+            "compacted 为 true",
+            "记录了第一次失败的日志"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "全部重试失败后跳过压缩",
+        "description": "LLM 调用全部失败后返回原始消息列表",
+        "steps": {
+          "given": [
+            "LLM 服务持续不可用",
+            "COMPACT_MAX_RETRIES 设为 2"
+          ],
+          "when": [
+            "调用 compactMessages 函数"
+          ],
+          "then": [
+            "LLM 被调用 3 次（1 次初始 + 2 次重试）",
+            "返回原始消息列表（未压缩）",
+            "compacted 为 false",
+            "记录了所有失败的日志"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "COMPACT_MAX_RETRIES 为 0 时不重试",
+        "description": "重试次数设为 0 时，失败后直接跳过",
+        "steps": {
+          "given": [
+            "LLM 第一次调用失败",
+            "COMPACT_MAX_RETRIES 设为 0"
+          ],
+          "when": [
+            "调用 compactMessages 函数"
+          ],
+          "then": [
+            "LLM 仅被调用 1 次",
+            "返回原始消息列表（未压缩）",
+            "compacted 为 false"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

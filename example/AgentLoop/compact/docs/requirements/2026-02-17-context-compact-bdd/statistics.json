@@ -1,0 +1,49 @@
+[
+  {
+    "category": "functional",
+    "feature": "Statistics",
+    "description": "F-008: 返回压缩相关的统计数据",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "压缩成功后返回完整统计信息",
+        "description": "压缩执行后 CompactResult 包含正确的统计数据",
+        "steps": {
+          "given": [
+            "消息列表包含 30 条消息，token 总量为 190000",
+            "压缩后 token 总量为 60000",
+            "Head 包含 1 条消息，Tail 包含 5 条消息，Middle 包含 24 条消息"
+          ],
+          "when": [
+            "调用 compactMessages 函数并成功压缩"
+          ],
+          "then": [
+            "stats.originalTokenCount 为 190000",
+            "stats.compactedTokenCount 为 60000",
+            "stats.compactionRatio 为 60000 / 190000 ≈ 0.316",
+            "stats.compactedMessageCount 为 24",
+            "stats.retainedMessageCount 为 6（1 head + 5 tail）"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "未执行压缩时统计信息为空",
+        "description": "当 token 未超阈值或压缩失败时，统计字段为 null",
+        "steps": {
+          "given": [
+            "消息列表 token 总量低于阈值"
+          ],
+          "when": [
+            "调用 compactMessages 函数"
+          ],
+          "then": [
+            "compacted 为 false",
+            "stats 为 null"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

@@ -1,0 +1,106 @@
+[
+  {
+    "category": "functional",
+    "feature": "Summary Generation",
+    "description": "F-004: 通过独立 LLM 调用将 Middle 区域消息生成结构化摘要",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "正常生成摘要",
+        "description": "将 Middle 消息发送给 LLM，获得包含关键维度的结构化摘要",
+        "steps": {
+          "given": [
+            "Middle 区域包含 20 条消息",
+            "消息涉及文件读取、工具调用、错误修复等操作",
+            "LLM 服务正常可用"
+          ],
+          "when": [
+            "调用 summarize 函数"
+          ],
+          "then": [
+            "返回非空的摘要文本",
+            "摘要包含对话目标和关键决策",
+            "摘要包含文件操作记录",
+            "摘要包含工具调用摘要",
+            "摘要包含当前任务状态",
+            "摘要包含错误和解决方案（如有）"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "摘要 prompt 包含正确的指令",
+        "description": "发送给 LLM 的 prompt 明确要求保留 5 个维度的信息",
+        "steps": {
+          "given": [
+            "Middle 区域包含若干消息"
+          ],
+          "when": [
+            "构造摘要 prompt"
+          ],
+          "then": [
+            "prompt 中包含对话目标和关键决策的保留要求",
+            "prompt 中包含文件操作记录的保留要求",
+            "prompt 中包含工具调用摘要的保留要求",
+            "prompt 中包含当前任务状态的保留要求",
+            "prompt 中包含错误和解决方案的保留要求"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "LLM 调用失败抛出错误",
+        "description": "LLM 调用因网络错误等原因失败时抛出错误",
+        "steps": {
+          "given": [
+            "Middle 区域包含若干消息",
+            "LLM 服务不可用（网络错误）"
+          ],
+          "when": [
+            "调用 summarize 函数"
+          ],
+          "then": [
+            "抛出包含错误信息的异常"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "LLM 返回空内容视为失败",
+        "description": "LLM 返回空字符串时视为调用失败",
+        "steps": {
+          "given": [
+            "Middle 区域包含若干消息",
+            "LLM 返回空字符串"
+          ],
+          "when": [
+            "调用 summarize 函数"
+          ],
+          "then": [
+            "抛出包含错误信息的异常，表明摘要内容为空"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "消息序列化为可读格式",
+        "description": "Middle 消息在发送给 LLM 前被序列化为可读的文本格式",
+        "steps": {
+          "given": [
+            "Middle 区域包含 user、assistant、tool_use、tool_result 等不同类型的消息"
+          ],
+          "when": [
+            "将消息序列化为 LLM 输入"
+          ],
+          "then": [
+            "每条消息包含角色标识",
+            "TextBlock 内容直接展示",
+            "ToolUseBlock 展示工具名称和参数",
+            "ToolResultBlock 展示工具结果内容"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

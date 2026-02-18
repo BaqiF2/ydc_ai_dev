@@ -85,7 +85,7 @@ Test root:          tests/
 
 | # | Feature | Module | Scenarios | Status |
 |---|---------|--------|-----------|--------|
-| 3.1 | Compact Integration | core/compact (end-to-end) | 5 | In Progress |
+| 3.1 | Compact Integration | core/compact (end-to-end) | 5 | Done |
 
 **Total: 9 features, 41 BDD scenarios**
 
@@ -188,6 +188,8 @@ E2E smoke tests are not applicable — this is a library module with no protocol
 | F-007 Fault Tolerance | In Progress | Done | 4/4 scenarios, commit 1c38e9f |
 | F-008 Statistics | Pending | In Progress | Starting RED phase |
 | F-008 Statistics | In Progress | Done | 2/2 scenarios, commit 40e5ea5 |
+| Compact Integration | Pending | In Progress | Starting RED phase |
+| Compact Integration | In Progress | Done | 5/5 scenarios, commit dabf363 |
 
 ## Final Verification Checklist
 

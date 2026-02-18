@@ -1,0 +1,122 @@
+[
+  {
+    "category": "functional",
+    "feature": "Message Partitioning",
+    "description": "F-003: 将消息列表划分为 Head / Middle / Tail 三个区域",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "正常分区：system + 多条消息",
+        "description": "消息列表包含 system prompt、中间消息和尾部消息，正确划分三个区域",
+        "steps": {
+          "given": [
+            "消息列表包含 1 条 system 消息和 10 条 user/assistant 消息",
+            "尾部保留 token 预算为 30000",
+            "最后 3 条消息的 token 总和约为 30000"
+          ],
+          "when": [
+            "执行消息分区"
+          ],
+          "then": [
+            "head 包含 1 条 system 消息",
+            "tail 包含最后 3 条消息",
+            "middle 包含中间的 7 条消息"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "无 system 消息时 Head 为空",
+        "description": "消息列表不以 system 角色开头时，Head 为空数组",
+        "steps": {
+          "given": [
+            "消息列表的第一条消息 role 为 user",
+            "共 5 条消息"
+          ],
+          "when": [
+            "执行消息分区"
+          ],
+          "then": [
+            "head 为空数组 []",
+            "middle 和 tail 涵盖所有 5 条消息"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "多条 system 消息全部归入 Head",
+        "description": "消息列表开头有连续多条 system 消息，全部归入 Head",
+        "steps": {
+          "given": [
+            "消息列表开头有 2 条连续的 system 消息",
+            "之后是 user/assistant 消息"
+          ],
+          "when": [
+            "执行消息分区"
+          ],
+          "then": [
+            "head 包含 2 条 system 消息",
+            "middle 和 tail 不包含 system 消息"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "Head + Tail 覆盖所有消息，Middle 为空",
+        "description": "当消息数量很少，尾部预算已覆盖所有非 system 消息时，Middle 为空",
+        "steps": {
+          "given": [
+            "消息列表包含 1 条 system 消息和 3 条其他消息",
+            "尾部保留 token 预算足以覆盖这 3 条消息的全部 token"
+          ],
+          "when": [
+            "执行消息分区"
+          ],
+          "then": [
+            "head 包含 1 条 system 消息",
+            "tail 包含 3 条消息",
+            "middle 为空数组 []"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "Tail 扫描不截断消息",
+        "description": "尾部扫描时最后纳入的消息使累计 token 超过预算，该消息仍完整保留",
+        "steps": {
+          "given": [
+            "尾部保留 token 预算为 10000",
+            "最后一条消息有 8000 token",
+            "倒数第二条消息有 5000 token（累计 13000，超过预算）"
+          ],
+          "when": [
+            "执行消息分区"
+          ],
+          "then": [
+            "tail 包含最后 2 条消息（8000 + 5000 = 13000 token）",
+            "消息不被截断，完整保留"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "只有一条消息时归入 Tail",
+        "description": "极端情况：消息列表只有一条消息",
+        "steps": {
+          "given": [
+            "消息列表只有 1 条 user 消息"
+          ],
+          "when": [
+            "执行消息分区"
+          ],
+          "then": [
+            "head 为空数组",
+            "middle 为空数组",
+            "tail 包含这 1 条消息"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

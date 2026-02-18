@@ -1,0 +1,98 @@
+[
+  {
+    "category": "functional",
+    "feature": "Compact Trigger",
+    "description": "F-002: 判断当前消息列表的 token 总量是否达到压缩阈值",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "token 超过阈值时返回 true",
+        "description": "当消息列表 token 总量超过上下文上限 × 阈值比例时触发压缩",
+        "steps": {
+          "given": [
+            "CONTEXT_TOKEN_LIMIT 设为 200000",
+            "COMPACT_THRESHOLD_RATIO 设为 0.92",
+            "消息列表的 token 总量为 190000"
+          ],
+          "when": [
+            "调用 shouldCompact 函数"
+          ],
+          "then": [
+            "返回 true"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "token 未达到阈值时返回 false",
+        "description": "当消息列表 token 总量低于阈值时不触发压缩",
+        "steps": {
+          "given": [
+            "CONTEXT_TOKEN_LIMIT 设为 200000",
+            "COMPACT_THRESHOLD_RATIO 设为 0.92",
+            "消息列表的 token 总量为 150000"
+          ],
+          "when": [
+            "调用 shouldCompact 函数"
+          ],
+          "then": [
+            "返回 false"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "token 恰好等于阈值时返回 true",
+        "description": "边界条件：token 总量恰好等于阈值（≥ 语义）",
+        "steps": {
+          "given": [
+            "CONTEXT_TOKEN_LIMIT 设为 200000",
+            "COMPACT_THRESHOLD_RATIO 设为 0.92",
+            "消息列表的 token 总量恰好为 184000"
+          ],
+          "when": [
+            "调用 shouldCompact 函数"
+          ],
+          "then": [
+            "返回 true"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "空消息列表返回 false",
+        "description": "空列表的 token 总量为 0，不触发压缩",
+        "steps": {
+          "given": [
+            "消息列表为空数组 []"
+          ],
+          "when": [
+            "调用 shouldCompact 函数"
+          ],
+          "then": [
+            "返回 false"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "使用自定义配置参数",
+        "description": "调用方通过 CompactOptions 覆盖默认配置",
+        "steps": {
+          "given": [
+            "消息列表的 token 总量为 90000",
+            "传入 CompactOptions: { contextTokenLimit: 100000, compactThresholdRatio: 0.8 }"
+          ],
+          "when": [
+            "调用 shouldCompact 函数并传入自定义 options"
+          ],
+          "then": [
+            "阈值按 100000 × 0.8 = 80000 计算",
+            "90000 ≥ 80000，返回 true"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]
