@@ -80,6 +80,10 @@ ydc_ai_dev/
 │   │       ├── quickstart/  # 快速开始
 │   │       ├── hooks/       # Hooks 使用
 │   │       └── subagent/    # Subagent 使用
+│   ├── AgentLoop/       # Agent Loop 上下文管理示例
+│   │   ├── compact/            # 通过 LLM 摘要进行上下文压缩
+│   │   ├── context-offload/    # tool_result 内容卸载到文件
+│   │   └── tool-direct-offload/ # 中间件模式的工具结果直接卸载
 │   ├── langchain01/     # Langchain 示例
 │   └── PlanAndExecute/  # 计划与执行示例
 ├── knowledge/           # 学习资料和文档
@@ -148,9 +152,11 @@ ydc_ai_dev/
 - [✅] 1. PostHog AI 智能体开发过程的经验与教训
 - [✅] 2. Claude 长期运行的智能体（Long-running Agents）：架构与实践分析
 
+### Agent Loop 上下文管理
 
-
-
+- [✅] [compact](example/AgentLoop/compact/) - 上下文压缩：通过独立 LLM 调用将中间历史消息生成结构化摘要，替换原始消息以释放 token 空间
+- [✅] [context-offload](example/AgentLoop/context-offload/) - 上下文卸载：将历史消息中 `tool_result` 的大段内容写入文件，替换为文件路径引用
+- [✅] [tool-direct-offload](example/AgentLoop/tool-direct-offload/) - 工具结果直接卸载：作为 Agent Loop 中间件，在工具执行结果返回 LLM 之前将超长内容写入文件
 
 
 

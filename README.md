@@ -82,6 +82,10 @@ ydc_ai_dev/
 │   │       ├── quickstart/  # Quick start
 │   │       ├── hooks/       # Hooks usage
 │   │       └── subagent/    # Subagent usage
+│   ├── AgentLoop/       # Agent Loop context management examples
+│   │   ├── compact/            # Context compression via LLM summarization
+│   │   ├── context-offload/    # tool_result content offloading to files
+│   │   └── tool-direct-offload/ # Middleware-based tool result offloading
 │   ├── langchain01/     # Langchain examples
 │   └── PlanAndExecute/  # Plan and Execute examples
 ├── knowledge/           # Learning materials and documentation
@@ -149,3 +153,9 @@ ydc_ai_dev/
 
 - [✅] 1. PostHog AI Agent development process experience and lessons learned
 - [✅] 2. Claude Long-running Agents: Architecture and practice analysis
+
+### Agent Loop Context Management
+
+- [✅] [compact](example/AgentLoop/compact/) - Context compression: Generate structured summaries of intermediate history via independent LLM calls to free up token space
+- [✅] [context-offload](example/AgentLoop/context-offload/) - Context offloading: Write large `tool_result` content to files, replacing with file path references
+- [✅] [tool-direct-offload](example/AgentLoop/tool-direct-offload/) - Tool result direct offloading: As Agent Loop middleware, write oversized content to files before returning to LLM
