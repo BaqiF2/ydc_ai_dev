@@ -1,0 +1,63 @@
+[
+  {
+    "category": "functional",
+    "feature": "structured-result",
+    "description": "结构化结果返回，所有工具调用统一使用 success/error 格式",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "成功操作返回统一的成功格式",
+        "description": "所有成功的工具调用应返回 { success: true, data: ... }",
+        "steps": {
+          "given": [
+            "工具注册表已初始化并注册所有 todo-list 工具"
+          ],
+          "when": [
+            "调用 create_todo 工具创建一个有效任务"
+          ],
+          "then": [
+            "返回对象包含 success 字段，值为 true",
+            "返回对象包含 data 字段，包含业务数据",
+            "返回对象不包含 error 字段"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "失败操作返回统一的错误格式",
+        "description": "所有失败的工具调用应返回 { success: false, error: '...' }",
+        "steps": {
+          "given": [
+            "工具注册表已初始化并注册所有 todo-list 工具"
+          ],
+          "when": [
+            "调用 get_todo 工具查询一个不存在的 ID"
+          ],
+          "then": [
+            "返回对象包含 success 字段，值为 false",
+            "返回对象包含 error 字段，值为英文错误描述",
+            "返回对象不包含 data 字段"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "工具不抛出异常",
+        "description": "即使输入非法，工具也应通过返回值而非异常传递错误",
+        "steps": {
+          "given": [
+            "工具注册表已初始化并注册所有 todo-list 工具"
+          ],
+          "when": [
+            "调用 create_todo 工具传入空标题"
+          ],
+          "then": [
+            "不抛出异常",
+            "返回 { success: false, error: '...' } 格式的结果"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

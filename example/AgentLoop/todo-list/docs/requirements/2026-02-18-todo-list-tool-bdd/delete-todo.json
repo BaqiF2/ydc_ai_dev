@@ -1,0 +1,81 @@
+[
+  {
+    "category": "functional",
+    "feature": "delete-todo",
+    "description": "按 ID 删除一个 todo 任务",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "成功删除已存在的任务",
+        "description": "使用有效 ID 删除任务时，应返回确认信息",
+        "steps": {
+          "given": [
+            "内存存储中存在一个任务，ID 为 'test-id-1'"
+          ],
+          "when": [
+            "调用 delete_todo 工具，传入 id 为 'test-id-1'"
+          ],
+          "then": [
+            "返回 success 为 true",
+            "返回的 data.message 为 \"Todo 'test-id-1' deleted successfully\""
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "删除后任务不再存在",
+        "description": "删除的任务不应再出现在查询结果中",
+        "steps": {
+          "given": [
+            "内存存储中存在一个任务，ID 为 'test-id-1'",
+            "调用 delete_todo 删除了该任务"
+          ],
+          "when": [
+            "调用 get_todo 工具，传入 id 为 'test-id-1'"
+          ],
+          "then": [
+            "返回 success 为 false",
+            "返回的 error 为 \"Todo with id 'test-id-1' not found\""
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "删除后任务列表不再包含该任务",
+        "description": "删除的任务不应出现在列表中",
+        "steps": {
+          "given": [
+            "内存存储中存在 2 个任务，ID 分别为 'test-id-1' 和 'test-id-2'",
+            "调用 delete_todo 删除了 'test-id-1'"
+          ],
+          "when": [
+            "调用 list_todos 工具"
+          ],
+          "then": [
+            "返回 success 为 true",
+            "返回的 data.total 为 1",
+            "返回的 data.todos 仅包含 'test-id-2' 的任务"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "删除不存在的任务",
+        "description": "使用不存在的 ID 删除任务时，应返回错误",
+        "steps": {
+          "given": [
+            "内存存储中没有 ID 为 'non-existent-id' 的任务"
+          ],
+          "when": [
+            "调用 delete_todo 工具，传入 id 为 'non-existent-id'"
+          ],
+          "then": [
+            "返回 success 为 false",
+            "返回的 error 为 \"Todo with id 'non-existent-id' not found\""
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

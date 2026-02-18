@@ -1,0 +1,60 @@
+[
+  {
+    "category": "functional",
+    "feature": "tool-registry",
+    "description": "工具注册机制，统一注册工具 Schema 和 Handler 到 agent loop",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "注册工具后可按名称查找",
+        "description": "注册的工具应能通过名称被检索到",
+        "steps": {
+          "given": [
+            "工具注册表为空"
+          ],
+          "when": [
+            "注册一个名为 'create_todo' 的工具（含 Schema 和 Handler）"
+          ],
+          "then": [
+            "通过名称 'create_todo' 可以查找到该工具",
+            "查找到的工具包含正确的 Schema 和 Handler"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "获取所有已注册工具的 Schema 列表",
+        "description": "应能获取所有工具的 Schema 用于发送给 LLM",
+        "steps": {
+          "given": [
+            "工具注册表中已注册 5 个 todo-list 工具"
+          ],
+          "when": [
+            "调用获取所有工具 Schema 的方法"
+          ],
+          "then": [
+            "返回包含 5 个 Schema 的数组",
+            "每个 Schema 包含 name、description、inputSchema"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "查找未注册的工具返回空结果",
+        "description": "查找不存在的工具名称应返回 undefined 或 null",
+        "steps": {
+          "given": [
+            "工具注册表中已注册 5 个 todo-list 工具"
+          ],
+          "when": [
+            "通过名称 'non_existent_tool' 查找工具"
+          ],
+          "then": [
+            "返回 undefined 或 null"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

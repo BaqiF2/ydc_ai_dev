@@ -1,0 +1,47 @@
+[
+  {
+    "category": "functional",
+    "feature": "get-todo",
+    "description": "按 ID 查询单个 todo 任务的完整详细信息",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "成功查询已存在的任务",
+        "description": "使用有效 ID 查询时，应返回任务的完整信息",
+        "steps": {
+          "given": [
+            "内存存储中存在一个 ID 为 'test-id-1' 的任务，title 为 'Buy groceries'，description 为 'Milk and eggs'"
+          ],
+          "when": [
+            "调用 get_todo 工具，传入 id 为 'test-id-1'"
+          ],
+          "then": [
+            "返回 success 为 true",
+            "返回的 data.id 为 'test-id-1'",
+            "返回的 data.title 为 'Buy groceries'",
+            "返回的 data.description 为 'Milk and eggs'",
+            "返回的 data 包含 status、createdAt、updatedAt 字段"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "查询不存在的任务",
+        "description": "使用不存在的 ID 查询时，应返回错误信息",
+        "steps": {
+          "given": [
+            "内存存储中没有 ID 为 'non-existent-id' 的任务"
+          ],
+          "when": [
+            "调用 get_todo 工具，传入 id 为 'non-existent-id'"
+          ],
+          "then": [
+            "返回 success 为 false",
+            "返回的 error 为 \"Todo with id 'non-existent-id' not found\""
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

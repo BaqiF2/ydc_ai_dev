@@ -1,0 +1,152 @@
+[
+  {
+    "category": "functional",
+    "feature": "create-todo",
+    "description": "创建 todo 任务功能，支持标题和可选描述，自动生成 ID 和时间戳",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "成功创建包含标题的任务",
+        "description": "使用有效标题创建任务时，系统应返回包含自动生成字段的任务对象",
+        "steps": {
+          "given": [
+            "内存存储中没有任何任务"
+          ],
+          "when": [
+            "调用 create_todo 工具，传入 title 为 'Buy groceries'"
+          ],
+          "then": [
+            "返回 success 为 true",
+            "返回的 data 包含自动生成的 UUID v4 格式 id",
+            "返回的 data.title 为 'Buy groceries'",
+            "返回的 data.description 为空字符串",
+            "返回的 data.status 为 'pending'",
+            "返回的 data.createdAt 为 ISO 8601 格式时间戳",
+            "返回的 data.updatedAt 等于 createdAt"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "成功创建包含标题和描述的任务",
+        "description": "同时提供标题和描述时，两者均应正确存储",
+        "steps": {
+          "given": [
+            "内存存储中没有任何任务"
+          ],
+          "when": [
+            "调用 create_todo 工具，传入 title 为 'Buy groceries'，description 为 'Milk, eggs, bread'"
+          ],
+          "then": [
+            "返回 success 为 true",
+            "返回的 data.title 为 'Buy groceries'",
+            "返回的 data.description 为 'Milk, eggs, bread'"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "创建任务时标题为空字符串",
+        "description": "空标题应被拒绝并返回错误信息",
+        "steps": {
+          "given": [
+            "内存存储中没有任何任务"
+          ],
+          "when": [
+            "调用 create_todo 工具，传入 title 为 ''"
+          ],
+          "then": [
+            "返回 success 为 false",
+            "返回的 error 为 'Title is required and cannot be empty'"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "创建任务时标题仅包含空白字符",
+        "description": "仅空白字符的标题应被视为空标题",
+        "steps": {
+          "given": [
+            "内存存储中没有任何任务"
+          ],
+          "when": [
+            "调用 create_todo 工具，传入 title 为 '   '"
+          ],
+          "then": [
+            "返回 success 为 false",
+            "返回的 error 为 'Title is required and cannot be empty'"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "创建任务时标题超过 200 字符",
+        "description": "超长标题应被拒绝",
+        "steps": {
+          "given": [
+            "内存存储中没有任何任务"
+          ],
+          "when": [
+            "调用 create_todo 工具，传入 title 为 201 个字符的字符串"
+          ],
+          "then": [
+            "返回 success 为 false",
+            "返回的 error 为 'Title must not exceed 200 characters'"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "创建任务时标题恰好 200 字符",
+        "description": "200 字符的标题应被允许（边界值）",
+        "steps": {
+          "given": [
+            "内存存储中没有任何任务"
+          ],
+          "when": [
+            "调用 create_todo 工具，传入 title 为恰好 200 个字符的字符串"
+          ],
+          "then": [
+            "返回 success 为 true",
+            "返回的 data.title 长度为 200"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "创建任务时描述超过 1000 字符",
+        "description": "超长描述应被拒绝",
+        "steps": {
+          "given": [
+            "内存存储中没有任何任务"
+          ],
+          "when": [
+            "调用 create_todo 工具，传入 title 为 'Test'，description 为 1001 个字符的字符串"
+          ],
+          "then": [
+            "返回 success 为 false",
+            "返回的 error 为 'Description must not exceed 1000 characters'"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "创建任务时标题恰好 1 个字符",
+        "description": "最短有效标题应被允许（边界值）",
+        "steps": {
+          "given": [
+            "内存存储中没有任何任务"
+          ],
+          "when": [
+            "调用 create_todo 工具，传入 title 为 'A'"
+          ],
+          "then": [
+            "返回 success 为 true",
+            "返回的 data.title 为 'A'"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

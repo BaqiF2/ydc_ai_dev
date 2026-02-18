@@ -1,0 +1,6 @@
+.claude/
+.idea/
+.compact-examples/
+node_modules/
+dist/
+coverage/

@@ -1,0 +1,49 @@
+[
+  {
+    "category": "functional",
+    "feature": "list-todos",
+    "description": "查询所有 todo 任务列表，返回任务摘要和总数",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "查询空任务列表",
+        "description": "当没有任何任务时，应返回空数组和 total 为 0",
+        "steps": {
+          "given": [
+            "内存存储中没有任何任务"
+          ],
+          "when": [
+            "调用 list_todos 工具"
+          ],
+          "then": [
+            "返回 success 为 true",
+            "返回的 data.todos 为空数组",
+            "返回的 data.total 为 0"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "查询包含多个任务的列表",
+        "description": "存在多个任务时，应返回所有任务摘要并按创建时间倒序排列",
+        "steps": {
+          "given": [
+            "内存存储中已有 3 个任务，分别在不同时间创建"
+          ],
+          "when": [
+            "调用 list_todos 工具"
+          ],
+          "then": [
+            "返回 success 为 true",
+            "返回的 data.total 为 3",
+            "返回的 data.todos 包含 3 个任务摘要",
+            "每个摘要包含 id、title、status、createdAt 四个字段",
+            "每个摘要不包含 description 字段",
+            "任务按 createdAt 倒序排列（最新的在前）"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

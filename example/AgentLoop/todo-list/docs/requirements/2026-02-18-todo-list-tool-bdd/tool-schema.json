@@ -1,0 +1,65 @@
+[
+  {
+    "category": "functional",
+    "feature": "tool-schema",
+    "description": "工具 Schema 定义，每个工具操作都有完整的 JSON Schema 规范",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "每个工具都有完整的 Schema 定义",
+        "description": "所有 5 个工具应各自拥有包含 name、description、inputSchema 的 Schema",
+        "steps": {
+          "given": [
+            "工具注册表已初始化"
+          ],
+          "when": [
+            "获取所有已注册工具的 Schema 列表"
+          ],
+          "then": [
+            "共有 5 个工具 Schema",
+            "每个 Schema 包含 name（string）、description（string）、inputSchema（object）",
+            "工具名称分别为：create_todo、list_todos、get_todo、update_todo、delete_todo"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "create_todo 的 inputSchema 正确定义了参数",
+        "description": "create_todo 应有 title（必填）和 description（可选）参数",
+        "steps": {
+          "given": [
+            "工具注册表已初始化"
+          ],
+          "when": [
+            "获取 create_todo 的 Schema"
+          ],
+          "then": [
+            "inputSchema.properties 包含 title 和 description",
+            "title 的 type 为 string",
+            "description 的 type 为 string",
+            "inputSchema.required 包含 'title'",
+            "inputSchema.required 不包含 'description'"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "update_todo 的 inputSchema 正确定义了状态枚举",
+        "description": "update_todo 的 status 参数应限定为三个枚举值",
+        "steps": {
+          "given": [
+            "工具注册表已初始化"
+          ],
+          "when": [
+            "获取 update_todo 的 Schema"
+          ],
+          "then": [
+            "inputSchema.properties.status 包含 enum 字段",
+            "enum 值为 ['pending', 'in_progress', 'completed']"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

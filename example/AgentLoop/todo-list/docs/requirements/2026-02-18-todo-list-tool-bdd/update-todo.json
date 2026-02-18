@@ -1,0 +1,168 @@
+[
+  {
+    "category": "functional",
+    "feature": "update-todo",
+    "description": "更新已存在的 todo 任务的标题、描述和/或状态",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "成功更新任务标题",
+        "description": "仅更新标题时，其他字段应保持不变",
+        "steps": {
+          "given": [
+            "内存存储中存在一个任务，ID 为 'test-id-1'，title 为 'Old title'，description 为 'Some desc'，status 为 'pending'"
+          ],
+          "when": [
+            "调用 update_todo 工具，传入 id 为 'test-id-1'，title 为 'New title'"
+          ],
+          "then": [
+            "返回 success 为 true",
+            "返回的 data.title 为 'New title'",
+            "返回的 data.description 为 'Some desc'（未变）",
+            "返回的 data.status 为 'pending'（未变）",
+            "返回的 data.updatedAt 大于原来的 updatedAt"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "成功更新任务状态为 in_progress",
+        "description": "将 pending 任务的状态更新为 in_progress",
+        "steps": {
+          "given": [
+            "内存存储中存在一个 status 为 'pending' 的任务，ID 为 'test-id-1'"
+          ],
+          "when": [
+            "调用 update_todo 工具，传入 id 为 'test-id-1'，status 为 'in_progress'"
+          ],
+          "then": [
+            "返回 success 为 true",
+            "返回的 data.status 为 'in_progress'"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "成功更新任务状态为 completed",
+        "description": "将 in_progress 任务的状态更新为 completed",
+        "steps": {
+          "given": [
+            "内存存储中存在一个 status 为 'in_progress' 的任务，ID 为 'test-id-1'"
+          ],
+          "when": [
+            "调用 update_todo 工具，传入 id 为 'test-id-1'，status 为 'completed'"
+          ],
+          "then": [
+            "返回 success 为 true",
+            "返回的 data.status 为 'completed'"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "同时更新多个字段",
+        "description": "同时更新标题、描述和状态时，所有字段都应正确更新",
+        "steps": {
+          "given": [
+            "内存存储中存在一个任务，ID 为 'test-id-1'，title 为 'Old'，description 为 'Old desc'，status 为 'pending'"
+          ],
+          "when": [
+            "调用 update_todo 工具，传入 id 为 'test-id-1'，title 为 'New'，description 为 'New desc'，status 为 'in_progress'"
+          ],
+          "then": [
+            "返回 success 为 true",
+            "返回的 data.title 为 'New'",
+            "返回的 data.description 为 'New desc'",
+            "返回的 data.status 为 'in_progress'"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "更新不存在的任务",
+        "description": "更新不存在的任务应返回错误",
+        "steps": {
+          "given": [
+            "内存存储中没有 ID 为 'non-existent-id' 的任务"
+          ],
+          "when": [
+            "调用 update_todo 工具，传入 id 为 'non-existent-id'，title 为 'New title'"
+          ],
+          "then": [
+            "返回 success 为 false",
+            "返回的 error 为 \"Todo with id 'non-existent-id' not found\""
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "更新时未提供任何可选字段",
+        "description": "不提供任何更新字段应返回错误",
+        "steps": {
+          "given": [
+            "内存存储中存在一个任务，ID 为 'test-id-1'"
+          ],
+          "when": [
+            "调用 update_todo 工具，仅传入 id 为 'test-id-1'，不传 title、description、status"
+          ],
+          "then": [
+            "返回 success 为 false",
+            "返回的 error 为 'At least one field (title, description, status) must be provided'"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "更新时标题为空字符串",
+        "description": "空标题应被拒绝",
+        "steps": {
+          "given": [
+            "内存存储中存在一个任务，ID 为 'test-id-1'"
+          ],
+          "when": [
+            "调用 update_todo 工具，传入 id 为 'test-id-1'，title 为 ''"
+          ],
+          "then": [
+            "返回 success 为 false",
+            "返回的 error 为 'Title is required and cannot be empty'"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "更新时传入无效状态值",
+        "description": "不合法的状态值应被拒绝",
+        "steps": {
+          "given": [
+            "内存存储中存在一个任务，ID 为 'test-id-1'"
+          ],
+          "when": [
+            "调用 update_todo 工具，传入 id 为 'test-id-1'，status 为 'invalid_status'"
+          ],
+          "then": [
+            "返回 success 为 false",
+            "返回的 error 为 \"Invalid status 'invalid_status'. Must be one of: pending, in_progress, completed\""
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "将已完成的任务重新开启为 pending",
+        "description": "completed 状态可以回退到 pending",
+        "steps": {
+          "given": [
+            "内存存储中存在一个 status 为 'completed' 的任务，ID 为 'test-id-1'"
+          ],
+          "when": [
+            "调用 update_todo 工具，传入 id 为 'test-id-1'，status 为 'pending'"
+          ],
+          "then": [
+            "返回 success 为 true",
+            "返回的 data.status 为 'pending'"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

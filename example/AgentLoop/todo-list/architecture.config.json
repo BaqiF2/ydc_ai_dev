@@ -1,0 +1,24 @@
+{
+  "required_dirs": [
+    "src",
+    "tests/unit",
+    "docs",
+    "docs/architecture/adr"
+  ],
+  "required_files": [
+    "package.json",
+    "tsconfig.json",
+    "vitest.config.ts",
+    "src/types.ts",
+    "src/store.ts",
+    "src/handlers.ts",
+    "src/tools.ts",
+    "src/registry.ts",
+    "src/index.ts",
+    "docs/architecture.md"
+  ],
+  "test_mirror": {
+    "src_dir": "src",
+    "test_dir": "tests/unit"
+  }
+}
