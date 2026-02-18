@@ -1,60 +1,25 @@
 /**
- * Todo 内存存储层
+ * Todo 内存存储层（数组整体替换模式）
  *
- * 使用 JavaScript Map 实现的 CRUD 操作。
- * - TodoStore: 内存存储类
- * - MAX_TITLE_LENGTH / MAX_DESCRIPTION_LENGTH: 长度限制常量
+ * 对齐 Claude Code 的 TodoWrite 整体替换模式，不再使用 Map CRUD。
+ *
+ * 核心导出：
+ * - TodoStore — 内存存储类，提供 write（整体替换）和 read（返回副本）两个方法
  */
 
-import crypto from 'node:crypto';
-import type { Todo, TodoStatus } from './types.js';
+import type { Todo } from './types.js';
 
-const MAX_TITLE_LENGTH = parseInt(process.env.TODO_MAX_TITLE_LENGTH || '200', 10);
-const MAX_DESCRIPTION_LENGTH = parseInt(process.env.TODO_MAX_DESCRIPTION_LENGTH || '1000', 10);
-export { MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH };
-
-/** Todo 内存存储：封装 Map 提供类型安全的 CRUD */
+/** Todo 内存存储：整体替换模式，write 覆盖、read 返回副本 */
 export class TodoStore {
-  private todos: Map<string, Todo> = new Map();
+  private todos: Todo[] = [];
 
-  create(title: string, description: string = ''): Todo {
-    const now = new Date().toISOString();
-    const todo: Todo = {
-      id: crypto.randomUUID(),
-      title,
-      description,
-      status: 'pending' as TodoStatus,
-      createdAt: now,
-      updatedAt: now,
-    };
-    this.todos.set(todo.id, todo);
-    return todo;
+  /** 整体替换当前任务列表 */
+  write(todos: Todo[]): void {
+    this.todos = todos.map(t => ({ ...t }));
   }
 
-  list(): Todo[] {
-    return Array.from(this.todos.values())
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  }
-
-  get(id: string): Todo | undefined {
-    return this.todos.get(id);
-  }
-
-  update(id: string, fields: Partial<Pick<Todo, 'title' | 'description' | 'status'>>): Todo | undefined {
-    const todo = this.todos.get(id);
-    if (!todo) return undefined;
-    if (fields.title !== undefined) todo.title = fields.title;
-    if (fields.description !== undefined) todo.description = fields.description;
-    if (fields.status !== undefined) todo.status = fields.status;
-    todo.updatedAt = new Date().toISOString();
-    return todo;
-  }
-
-  delete(id: string): boolean {
-    return this.todos.delete(id);
-  }
-
-  get size(): number {
-    return this.todos.size;
+  /** 读取所有任务（返回副本，修改不影响 store） */
+  read(): Todo[] {
+    return this.todos.map(t => ({ ...t }));
   }
 }

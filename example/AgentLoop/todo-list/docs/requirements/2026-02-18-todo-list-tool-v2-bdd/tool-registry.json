@@ -1,0 +1,114 @@
+[
+  {
+    "category": "functional",
+    "feature": "ToolRegistry",
+    "description": "工具注册表：统一管理工具注册、查找和执行，引入 tool_use_id 关联机制",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "注册和查找工具",
+        "description": "注册工具后可通过名称查找",
+        "steps": {
+          "given": [
+            "创建空的 ToolRegistry"
+          ],
+          "when": [
+            "注册一个名为 'TestTool' 的工具"
+          ],
+          "then": [
+            "通过 getTool('TestTool') 能找到该工具",
+            "getTool 返回的 definition.name 为 'TestTool'"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "查找不存在的工具",
+        "description": "查找未注册的工具返回 undefined",
+        "steps": {
+          "given": [
+            "创建空的 ToolRegistry"
+          ],
+          "when": [
+            "调用 getTool('NonExistent')"
+          ],
+          "then": [
+            "返回 undefined"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "获取所有工具定义",
+        "description": "getToolDefinitions 返回所有已注册工具的 Schema",
+        "steps": {
+          "given": [
+            "创建 ToolRegistry 并注册 TodoWrite 和 TestTool 两个工具"
+          ],
+          "when": [
+            "调用 getToolDefinitions()"
+          ],
+          "then": [
+            "返回数组长度为 2",
+            "包含 name 为 'TodoWrite' 的 Schema",
+            "包含 name 为 'TestTool' 的 Schema",
+            "每个 Schema 包含 name、description、input_schema 字段"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "执行工具时 tool_use_id 正确关联",
+        "description": "executeTool 返回的 ToolResult 中 tool_use_id 与传入一致",
+        "steps": {
+          "given": [
+            "工具注册表已注册 TodoWrite 工具"
+          ],
+          "when": [
+            "调用 executeTool('toolu_abc123', 'TodoWrite', { todos: [] })"
+          ],
+          "then": [
+            "返回的 ToolResult.tool_use_id 为 'toolu_abc123'",
+            "返回的 ToolResult.type 为 'tool_result'"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "执行不存在的工具",
+        "description": "调用未注册的工具名时返回错误",
+        "steps": {
+          "given": [
+            "工具注册表已创建"
+          ],
+          "when": [
+            "调用 executeTool('toolu_999', 'NonExistent', {})"
+          ],
+          "then": [
+            "返回 is_error 为 true",
+            "返回 content 包含 \"Tool 'NonExistent' not found\"",
+            "返回 tool_use_id 为 'toolu_999'"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "executeTool 返回 Promise",
+        "description": "executeTool 是异步方法，返回 Promise<ToolResult>",
+        "steps": {
+          "given": [
+            "工具注册表已注册 TodoWrite 工具"
+          ],
+          "when": [
+            "调用 executeTool 获取返回值"
+          ],
+          "then": [
+            "返回值是一个 Promise",
+            "await 后得到 ToolResult 对象"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

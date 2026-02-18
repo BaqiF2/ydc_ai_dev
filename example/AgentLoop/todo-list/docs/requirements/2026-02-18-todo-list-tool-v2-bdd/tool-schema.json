@@ -1,0 +1,36 @@
+[
+  {
+    "category": "functional",
+    "feature": "ToolSchema",
+    "description": "工具 Schema 定义：对齐 Anthropic API 的 input_schema 标准格式",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "TodoWrite Schema 结构正确",
+        "description": "TodoWrite 的 Schema 包含必需字段且格式符合 Anthropic API 标准",
+        "steps": {
+          "given": [
+            "TodoWrite 的 ToolDefinition 已导出"
+          ],
+          "when": [
+            "检查 TodoWrite Schema 结构"
+          ],
+          "then": [
+            "name 为 'TodoWrite'",
+            "description 非空",
+            "包含 input_schema 字段（snake_case）",
+            "input_schema.type 为 'object'",
+            "input_schema.properties 包含 todos 属性",
+            "input_schema.required 包含 'todos'",
+            "todos 的 type 为 'array'",
+            "todos.items 包含 content、status、activeForm 属性",
+            "todos.items.required 包含 'content'、'status'、'activeForm'",
+            "todos.items.additionalProperties 为 false",
+            "status 包含 enum: ['pending', 'in_progress', 'completed']"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

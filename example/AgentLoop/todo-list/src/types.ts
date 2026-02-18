@@ -1,57 +1,53 @@
 /**
- * Todo-List Tool 类型定义
+ * Todo-List Tool 类型定义（对齐 Anthropic Claude API + Claude Code）
  *
- * 核心类型接口：Todo 数据模型、ToolDefinition Schema 接口、
- * ToolHandler 处理函数类型、ToolResult 统一返回格式。
+ * 核心导出：
+ * - Todo / TodoStatus / VALID_STATUSES — 任务数据模型（对齐 Claude Code TodoWrite）
+ * - ToolDefinition — 工具 Schema 定义（对齐 Anthropic API input_schema）
+ * - ToolHandlerResult — Handler 内部返回格式（不含 tool_use_id）
+ * - ToolResult — 最终工具执行结果（对齐 Anthropic tool_result 标准格式）
+ * - ToolHandler — 异步工具处理函数类型
+ * - RegisteredTool — 已注册工具（Schema + Handler）
  */
 
-/** 任务状态：pending（待办）| in_progress（进行中）| completed（已完成） */
-export type TodoStatus = 'pending' | 'in_progress' | 'completed';
-
 /** 合法状态值列表，用于运行时校验 */
-export const VALID_STATUSES: readonly TodoStatus[] = ['pending', 'in_progress', 'completed'] as const;
+export const VALID_STATUSES = ['pending', 'in_progress', 'completed'] as const;
 
-/** Todo 任务数据模型 */
+/** 任务状态：pending（待办）| in_progress（进行中）| completed（已完成） */
+export type TodoStatus = typeof VALID_STATUSES[number];
+
+/** Todo 任务数据模型（对齐 Claude Code：content + status + activeForm） */
 export interface Todo {
-  id: string;
-  title: string;
-  description: string;
+  content: string;
   status: TodoStatus;
-  createdAt: string;
-  updatedAt: string;
+  activeForm: string;
 }
 
-// 工具结构化结果：成功返回 data，失败返回 error
-
-export interface ToolSuccess<T = unknown> { success: true; data: T }
-export interface ToolError { success: false; error: string }
-export type ToolResult<T = unknown> = ToolSuccess<T> | ToolError;
-
-// 工具定义接口：Schema 告诉 LLM 工具叫什么、做什么、需要什么参数
-
-/** 工具输入参数的 JSON Schema 定义 */
-export interface InputSchema {
-  type: 'object';
-  properties: Record<string, {
-    type: string;
-    description: string;
-    enum?: string[];
-    maxLength?: number;
-  }>;
-  required?: string[];
-}
-
-/** 工具定义：名称 + 描述 + 输入参数 Schema */
+/** 工具 Schema 定义（对齐 Anthropic API：input_schema snake_case） */
 export interface ToolDefinition {
   name: string;
   description: string;
-  inputSchema: InputSchema;
+  input_schema: Record<string, unknown>;
 }
 
-/** 工具处理函数：接收参数对象，返回结构化结果 */
-export type ToolHandler = (params: Record<string, unknown>) => ToolResult;
+/** Handler 内部返回格式（不含 tool_use_id，由 Registry 组装） */
+export interface ToolHandlerResult {
+  content: string;
+  is_error?: boolean;
+}
 
-/** 已注册的工具：Schema 定义 + 处理函数 */
+/** 最终工具执行结果（对齐 Anthropic tool_result 标准格式） */
+export interface ToolResult {
+  type: 'tool_result';
+  tool_use_id: string;
+  content: string;
+  is_error?: boolean;
+}
+
+/** 异步工具处理函数：接收参数，返回 Promise<ToolHandlerResult> */
+export type ToolHandler = (params: Record<string, unknown>) => Promise<ToolHandlerResult>;
+
+/** 已注册的工具：Schema 定义 + 异步处理函数 */
 export interface RegisteredTool {
   definition: ToolDefinition;
   handler: ToolHandler;

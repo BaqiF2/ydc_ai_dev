@@ -85,7 +85,8 @@ ydc_ai_dev/
 │   ├── AgentLoop/       # Agent Loop context management examples
 │   │   ├── compact/            # Context compression via LLM summarization
 │   │   ├── context-offload/    # tool_result content offloading to files
-│   │   └── tool-direct-offload/ # Middleware-based tool result offloading
+│   │   ├── tool-direct-offload/ # Middleware-based tool result offloading
+│   │   └── todo-list/          # Tool teaching example (Anthropic API aligned TodoWrite)
 │   ├── langchain01/     # Langchain examples
 │   └── PlanAndExecute/  # Plan and Execute examples
 ├── knowledge/           # Learning materials and documentation
@@ -159,3 +160,4 @@ ydc_ai_dev/
 - [✅] [compact](example/AgentLoop/compact/) - Context compression: Generate structured summaries of intermediate history via independent LLM calls to free up token space
 - [✅] [context-offload](example/AgentLoop/context-offload/) - Context offloading: Write large `tool_result` content to files, replacing with file path references
 - [✅] [tool-direct-offload](example/AgentLoop/tool-direct-offload/) - Tool result direct offloading: As Agent Loop middleware, write oversized content to files before returning to LLM
+- [✅] [todo-list](example/AgentLoop/todo-list/) - Tool teaching example: Aligned with Anthropic Claude API standard format + Claude Code TodoWrite pattern, demonstrating tool definition (`input_schema`), `tool_use_id` association, async Handler, Zod validation, and `tool_result` standard return

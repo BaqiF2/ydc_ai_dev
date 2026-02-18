@@ -1,130 +1,92 @@
 /**
  * ToolRegistry 单元测试
- * 测试工具注册表的注册、查找、列表和执行功能。
+ *
+ * 测试目标：验证工具注册、查找、执行和 tool_use_id 关联机制
+ * BDD 来源：tool-registry.json
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ToolRegistry } from '../../src/registry.js';
 import type { ToolDefinition, ToolHandler } from '../../src/types.js';
+import { todoWriteDefinition } from '../../src/tools.js';
+import { createTodoWriteHandler } from '../../src/handlers.js';
+import { TodoStore } from '../../src/store.js';
 
 describe('ToolRegistry', () => {
   let registry: ToolRegistry;
 
-  const mockDefinition: ToolDefinition = {
-    name: 'test_tool',
+  const testDefinition: ToolDefinition = {
+    name: 'TestTool',
     description: 'A test tool',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        input: { type: 'string', description: 'Test input' },
-      },
-      required: ['input'],
-    },
+    input_schema: { type: 'object', properties: {} },
   };
 
-  const mockHandler: ToolHandler = (params) => ({
-    success: true as const,
-    data: { received: params.input },
+  const testHandler: ToolHandler = async () => ({
+    content: 'test result',
+    is_error: false,
   });
 
   beforeEach(() => {
     registry = new ToolRegistry();
   });
 
-  describe('register', () => {
-    it('should register a tool successfully', () => {
-      registry.register(mockDefinition, mockHandler);
-      const tool = registry.getTool('test_tool');
-      expect(tool).toBeDefined();
-      expect(tool!.definition.name).toBe('test_tool');
-    });
+  it('registers and finds a tool by name', () => {
+    registry.register(testDefinition, testHandler);
+
+    const tool = registry.getTool('TestTool');
+    expect(tool).toBeDefined();
+    expect(tool!.definition.name).toBe('TestTool');
   });
 
-  describe('getTool', () => {
-    it('should return registered tool by name', () => {
-      registry.register(mockDefinition, mockHandler);
-      const tool = registry.getTool('test_tool');
-      expect(tool).toBeDefined();
-      expect(tool!.definition).toEqual(mockDefinition);
-    });
-
-    it('should return undefined for non-existent tool', () => {
-      expect(registry.getTool('non_existent_tool')).toBeUndefined();
-    });
+  it('returns undefined for unregistered tool', () => {
+    const tool = registry.getTool('NonExistent');
+    expect(tool).toBeUndefined();
   });
 
-  describe('getToolDefinitions', () => {
-    it('should return all registered tool definitions', () => {
-      registry.register(mockDefinition, mockHandler);
+  it('returns all tool definitions', () => {
+    const store = new TodoStore();
+    registry.register(todoWriteDefinition, createTodoWriteHandler(store));
+    registry.register(testDefinition, testHandler);
 
-      const anotherDef: ToolDefinition = {
-        name: 'another_tool',
-        description: 'Another tool',
-        inputSchema: { type: 'object', properties: {} },
-      };
-      registry.register(anotherDef, () => ({ success: true as const, data: null }));
+    const definitions = registry.getToolDefinitions();
+    expect(definitions).toHaveLength(2);
 
-      const definitions = registry.getToolDefinitions();
-      expect(definitions).toHaveLength(2);
-      expect(definitions.map((d) => d.name)).toContain('test_tool');
-      expect(definitions.map((d) => d.name)).toContain('another_tool');
-    });
+    const names = definitions.map(d => d.name);
+    expect(names).toContain('TodoWrite');
+    expect(names).toContain('TestTool');
 
-    it('should return empty array when no tools registered', () => {
-      expect(registry.getToolDefinitions()).toEqual([]);
-    });
+    for (const def of definitions) {
+      expect(def).toHaveProperty('name');
+      expect(def).toHaveProperty('description');
+      expect(def).toHaveProperty('input_schema');
+    }
   });
 
-  describe('executeTool', () => {
-    it('should execute registered tool and return result', () => {
-      registry.register(mockDefinition, mockHandler);
-      const result = registry.executeTool('test_tool', { input: 'hello' });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect((result.data as Record<string, unknown>).received).toBe('hello');
-      }
-    });
+  it('executeTool returns correct tool_use_id', async () => {
+    const store = new TodoStore();
+    registry.register(todoWriteDefinition, createTodoWriteHandler(store));
 
-    it('should return error for non-existent tool', () => {
-      const result = registry.executeTool('non_existent', {});
-      expect(result.success).toBe(false);
-      if (!result.success) {
-        expect(result.error).toBe("Tool 'non_existent' not found");
-      }
-    });
+    const result = await registry.executeTool('toolu_abc123', 'TodoWrite', { todos: [] });
+    expect(result.tool_use_id).toBe('toolu_abc123');
+    expect(result.type).toBe('tool_result');
   });
 
-  describe('structured result format', () => {
-    it('should return success format with data', () => {
-      registry.register(mockDefinition, mockHandler);
-      const result = registry.executeTool('test_tool', { input: 'test' });
-      expect(result).toHaveProperty('success', true);
-      expect(result).toHaveProperty('data');
-      expect(result).not.toHaveProperty('error');
-    });
+  it('executeTool returns error for non-existent tool', async () => {
+    const result = await registry.executeTool('toolu_999', 'NonExistent', {});
+    expect(result.is_error).toBe(true);
+    expect(result.content).toBe("Tool 'NonExistent' not found");
+    expect(result.tool_use_id).toBe('toolu_999');
+  });
 
-    it('should return error format without data', () => {
-      const result = registry.executeTool('missing_tool', {});
-      expect(result).toHaveProperty('success', false);
-      expect(result).toHaveProperty('error');
-      expect(result).not.toHaveProperty('data');
-    });
+  it('executeTool returns a Promise', async () => {
+    const store = new TodoStore();
+    registry.register(todoWriteDefinition, createTodoWriteHandler(store));
 
-    it('should not throw exceptions on invalid input', () => {
-      const failHandler: ToolHandler = () => ({
-        success: false as const,
-        error: 'Validation failed',
-      });
-      const def: ToolDefinition = {
-        name: 'fail_tool',
-        description: 'Tool that returns error',
-        inputSchema: { type: 'object', properties: {} },
-      };
-      registry.register(def, failHandler);
+    const returnValue = registry.executeTool('toolu_01', 'TodoWrite', { todos: [] });
+    expect(returnValue).toBeInstanceOf(Promise);
 
-      expect(() => registry.executeTool('fail_tool', {})).not.toThrow();
-      const result = registry.executeTool('fail_tool', {});
-      expect(result.success).toBe(false);
-    });
+    const result = await returnValue;
+    expect(result.type).toBe('tool_result');
+    expect(result).toHaveProperty('content');
   });
 });

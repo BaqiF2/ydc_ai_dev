@@ -1,0 +1,93 @@
+[
+  {
+    "category": "functional",
+    "feature": "TodoStore",
+    "description": "TodoStore 内存存储：数组整体替换模式",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "write 整体替换",
+        "description": "write 方法将传入的 todos 数组完整替换 store 中的数据",
+        "steps": {
+          "given": [
+            "创建空的 TodoStore"
+          ],
+          "when": [
+            "调用 write 传入 3 个 todo 项"
+          ],
+          "then": [
+            "调用 read 返回 3 个 todo 项",
+            "内容与写入的一致"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "write 覆盖旧数据",
+        "description": "第二次 write 完全覆盖第一次写入的数据",
+        "steps": {
+          "given": [
+            "TodoStore 中已通过 write 写入 2 个任务"
+          ],
+          "when": [
+            "调用 write 传入 1 个新任务"
+          ],
+          "then": [
+            "调用 read 返回 1 个任务",
+            "之前的 2 个任务不再存在"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "write 空数组",
+        "description": "write 传入空数组清空 store",
+        "steps": {
+          "given": [
+            "TodoStore 中已有 3 个任务"
+          ],
+          "when": [
+            "调用 write 传入空数组 []"
+          ],
+          "then": [
+            "调用 read 返回空数组"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "read 返回副本",
+        "description": "read 返回的数组是 store 内部数据的副本，修改返回值不影响 store",
+        "steps": {
+          "given": [
+            "TodoStore 中已有 2 个任务"
+          ],
+          "when": [
+            "调用 read 获取结果",
+            "修改返回数组（如 push 新元素）"
+          ],
+          "then": [
+            "再次调用 read 返回的数组长度仍为 2"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "初始状态为空",
+        "description": "新创建的 TodoStore 中没有任何任务",
+        "steps": {
+          "given": [
+            "创建新的 TodoStore"
+          ],
+          "when": [
+            "调用 read"
+          ],
+          "then": [
+            "返回空数组"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

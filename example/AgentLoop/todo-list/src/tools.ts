@@ -1,70 +1,46 @@
 /**
- * Todo 工具 Schema 定义
+ * Todo 工具 Schema 定义（对齐 Anthropic API input_schema 标准）
  *
- * 5 个工具的 JSON Schema，供 LLM 理解工具名称、用途和参数。
- * - createTodoDefinition / listTodosDefinition / getTodoDefinition
- * - updateTodoDefinition / deleteTodoDefinition
- * - allToolDefinitions: 所有工具 Schema 列表
+ * 核心导出：
+ * - todoWriteDefinition — TodoWrite 工具 Schema（整体替换任务列表，返回更新后结果）
  */
 
 import type { ToolDefinition } from './types.js';
-import { MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH } from './store.js';
 
-export const createTodoDefinition: ToolDefinition = {
-  name: 'create_todo',
-  description: 'Create a new todo task with a title and optional description. The task will be created with pending status.',
-  inputSchema: {
+/** TodoWrite 工具定义：接收完整 todos 数组，整体替换当前任务列表，返回更新后的列表 */
+export const todoWriteDefinition: ToolDefinition = {
+  name: 'TodoWrite',
+  description: 'Write the entire todo list. Replaces all existing todos with the provided array and returns the updated list. Pass an empty array to clear all todos.',
+  input_schema: {
     type: 'object',
     properties: {
-      title: { type: 'string', description: `The title of the todo task (1-${MAX_TITLE_LENGTH} characters)`, maxLength: MAX_TITLE_LENGTH },
-      description: { type: 'string', description: `Optional description (0-${MAX_DESCRIPTION_LENGTH} characters)`, maxLength: MAX_DESCRIPTION_LENGTH },
+      todos: {
+        type: 'array',
+        description: 'The complete list of todos to write. This replaces all existing todos.',
+        items: {
+          type: 'object',
+          properties: {
+            content: {
+              type: 'string',
+              description: 'The todo task content in imperative form.',
+              minLength: 1,
+            },
+            status: {
+              type: 'string',
+              description: 'The current status of the todo.',
+              enum: ['pending', 'in_progress', 'completed'],
+            },
+            activeForm: {
+              type: 'string',
+              description: 'Present continuous form shown when task is in progress.',
+              minLength: 1,
+            },
+          },
+          required: ['content', 'status', 'activeForm'],
+          additionalProperties: false,
+        },
+      },
     },
-    required: ['title'],
+    required: ['todos'],
   },
 };
-
-export const listTodosDefinition: ToolDefinition = {
-  name: 'list_todos',
-  description: 'List all todo tasks. Returns a summary (id, title, status, createdAt) sorted by creation time (newest first).',
-  inputSchema: { type: 'object', properties: {} },
-};
-
-export const getTodoDefinition: ToolDefinition = {
-  name: 'get_todo',
-  description: 'Get the full details of a single todo task by its ID.',
-  inputSchema: {
-    type: 'object',
-    properties: { id: { type: 'string', description: 'The ID of the todo task to retrieve' } },
-    required: ['id'],
-  },
-};
-
-export const updateTodoDefinition: ToolDefinition = {
-  name: 'update_todo',
-  description: 'Update an existing todo task. You can update title, description, and/or status. At least one field must be provided.',
-  inputSchema: {
-    type: 'object',
-    properties: {
-      id: { type: 'string', description: 'The ID of the todo task to update' },
-      title: { type: 'string', description: `New title (1-${MAX_TITLE_LENGTH} characters)`, maxLength: MAX_TITLE_LENGTH },
-      description: { type: 'string', description: `New description (0-${MAX_DESCRIPTION_LENGTH} characters)`, maxLength: MAX_DESCRIPTION_LENGTH },
-      status: { type: 'string', description: 'New status for the task', enum: ['pending', 'in_progress', 'completed'] },
-    },
-    required: ['id'],
-  },
-};
-
-export const deleteTodoDefinition: ToolDefinition = {
-  name: 'delete_todo',
-  description: 'Delete a todo task by its ID. This action is permanent.',
-  inputSchema: {
-    type: 'object',
-    properties: { id: { type: 'string', description: 'The ID of the todo task to delete' } },
-    required: ['id'],
-  },
-};
-
-export const allToolDefinitions: ToolDefinition[] = [
-  createTodoDefinition, listTodosDefinition, getTodoDefinition,
-  updateTodoDefinition, deleteTodoDefinition,
-];

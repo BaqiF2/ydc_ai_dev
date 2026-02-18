@@ -1,70 +1,49 @@
 /**
- * 工具 Schema 定义单元测试
- * 验证每个工具的 Schema 结构正确性和参数定义完整性。
+ * 工具 Schema 定义测试
+ *
+ * 测试目标：验证 TodoWrite 的 Schema 结构对齐 Anthropic API 标准
+ * BDD 来源：tool-schema.json
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  createTodoDefinition,
-  listTodosDefinition,
-  getTodoDefinition,
-  updateTodoDefinition,
-  deleteTodoDefinition,
-  allToolDefinitions,
-} from '../../src/tools.js';
+import { todoWriteDefinition } from '../../src/tools.js';
 
-describe('Tool Schema Definitions', () => {
-  it('should have 5 tool definitions', () => {
-    expect(allToolDefinitions).toHaveLength(5);
-  });
+describe('ToolSchema', () => {
+  describe('TodoWrite Schema', () => {
+    it('has correct structure aligned with Anthropic API', () => {
+      expect(todoWriteDefinition.name).toBe('TodoWrite');
+      expect(todoWriteDefinition.description).toBeTruthy();
+      expect(todoWriteDefinition).toHaveProperty('input_schema');
 
-  it('should have correct tool names', () => {
-    const names = allToolDefinitions.map((t) => t.name);
-    expect(names).toEqual([
-      'create_todo',
-      'list_todos',
-      'get_todo',
-      'update_todo',
-      'delete_todo',
-    ]);
-  });
+      const schema = todoWriteDefinition.input_schema as Record<string, unknown>;
+      expect(schema.type).toBe('object');
 
-  it('every definition should have name, description, and inputSchema', () => {
-    for (const def of allToolDefinitions) {
-      expect(def.name).toBeDefined();
-      expect(def.description).toBeDefined();
-      expect(def.inputSchema).toBeDefined();
-      expect(def.inputSchema.type).toBe('object');
-    }
-  });
+      const properties = schema.properties as Record<string, unknown>;
+      expect(properties).toHaveProperty('todos');
 
-  describe('create_todo schema', () => {
-    it('should require title', () => {
-      expect(createTodoDefinition.inputSchema.required).toContain('title');
-    });
+      const required = schema.required as string[];
+      expect(required).toContain('todos');
 
-    it('should not require description', () => {
-      expect(createTodoDefinition.inputSchema.required).not.toContain('description');
-    });
+      // Verify todos array schema
+      const todosSchema = properties.todos as Record<string, unknown>;
+      expect(todosSchema.type).toBe('array');
 
-    it('should have title and description properties', () => {
-      expect(createTodoDefinition.inputSchema.properties.title).toBeDefined();
-      expect(createTodoDefinition.inputSchema.properties.description).toBeDefined();
-    });
+      const items = todosSchema.items as Record<string, unknown>;
+      const itemProperties = items.properties as Record<string, unknown>;
+      expect(itemProperties).toHaveProperty('content');
+      expect(itemProperties).toHaveProperty('status');
+      expect(itemProperties).toHaveProperty('activeForm');
 
-    it('title should be string type', () => {
-      expect(createTodoDefinition.inputSchema.properties.title.type).toBe('string');
-    });
-  });
+      const itemRequired = items.required as string[];
+      expect(itemRequired).toContain('content');
+      expect(itemRequired).toContain('status');
+      expect(itemRequired).toContain('activeForm');
 
-  describe('update_todo schema', () => {
-    it('should have status enum with valid values', () => {
-      const statusProp = updateTodoDefinition.inputSchema.properties.status;
-      expect(statusProp.enum).toEqual(['pending', 'in_progress', 'completed']);
-    });
+      expect(items.additionalProperties).toBe(false);
 
-    it('should require id', () => {
-      expect(updateTodoDefinition.inputSchema.required).toContain('id');
+      // Verify status enum
+      const statusSchema = itemProperties.status as Record<string, unknown>;
+      expect(statusSchema.enum).toEqual(['pending', 'in_progress', 'completed']);
     });
   });
 });

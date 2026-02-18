@@ -1,95 +1,51 @@
 /**
- * Todo 工具处理函数
+ * Todo 工具处理函数（异步 Handler，对齐 Anthropic API）
  *
- * 5 个 handler 工厂函数，每个接收 TodoStore 返回 ToolHandler：
- * - createCreateTodoHandler / createListTodosHandler / createGetTodoHandler
- * - createUpdateTodoHandler / createDeleteTodoHandler
+ * 核心导出：
+ * - TodoSchema — 单条 Todo 的 Zod 校验 Schema（content/activeForm 自动 trim，status 枚举校验）
+ * - createTodoWriteHandler — TodoWrite 处理函数（Zod 校验 + 整体替换 + 返回更新后列表）
  */
 
-import { TodoStore, MAX_TITLE_LENGTH, MAX_DESCRIPTION_LENGTH } from './store.js';
-import type { ToolHandler, ToolResult } from './types.js';
+import { z } from 'zod';
+import { TodoStore } from './store.js';
+import type { ToolHandler, ToolHandlerResult } from './types.js';
 import { VALID_STATUSES } from './types.js';
 
-/** 创建任务 handler */
-export function createCreateTodoHandler(store: TodoStore): ToolHandler {
-  return (params: Record<string, unknown>): ToolResult => {
-    const title = params.title as string | undefined;
-    const description = (params.description as string | undefined) ?? '';
+/** 单条 Todo 校验 Schema：content/activeForm 自动 trim，status 枚举校验 */
+export const TodoSchema = z.object({
+  content: z.string({ error: 'content is required and cannot be empty' })
+    .trim()
+    .min(1, 'content is required and cannot be empty'),
+  status: z.enum(VALID_STATUSES, {
+    error: (issue) =>
+      `invalid status '${issue.input}'. Must be one of: ${VALID_STATUSES.join(', ')}`,
+  }),
+  activeForm: z.string({ error: 'activeForm is required and cannot be empty' })
+    .trim()
+    .min(1, 'activeForm is required and cannot be empty'),
+});
 
-    if (!title || title.trim().length === 0) {
-      return { success: false, error: 'Title is required and cannot be empty' };
-    }
-    if (title.length > MAX_TITLE_LENGTH) {
-      return { success: false, error: `Title must not exceed ${MAX_TITLE_LENGTH} characters` };
-    }
-    if (description.length > MAX_DESCRIPTION_LENGTH) {
-      return { success: false, error: `Description must not exceed ${MAX_DESCRIPTION_LENGTH} characters` };
-    }
+/** 创建 TodoWrite handler：Zod 校验 todos 数组 → 整体替换 store → 返回更新后列表 */
+export function createTodoWriteHandler(store: TodoStore): ToolHandler {
+  return async (params: Record<string, unknown>): Promise<ToolHandlerResult> => {
+    const { todos } = params;
 
-    return { success: true, data: store.create(title, description) };
-  };
-}
-
-/** 查询任务列表 handler */
-export function createListTodosHandler(store: TodoStore): ToolHandler {
-  return (): ToolResult => {
-    const todos = store.list().map(({ id, title, status, createdAt }) => ({ id, title, status, createdAt }));
-    return { success: true, data: { todos, total: todos.length } };
-  };
-}
-
-/** 查询单个任务 handler */
-export function createGetTodoHandler(store: TodoStore): ToolHandler {
-  return (params: Record<string, unknown>): ToolResult => {
-    const id = params.id as string;
-    const todo = store.get(id);
-    if (!todo) return { success: false, error: `Todo with id '${id}' not found` };
-    return { success: true, data: todo };
-  };
-}
-
-/** 更新任务 handler */
-export function createUpdateTodoHandler(store: TodoStore): ToolHandler {
-  return (params: Record<string, unknown>): ToolResult => {
-    const id = params.id as string;
-    const title = params.title as string | undefined;
-    const description = params.description as string | undefined;
-    const status = params.status as string | undefined;
-
-    if (title === undefined && description === undefined && status === undefined) {
-      return { success: false, error: 'At least one field (title, description, status) must be provided' };
-    }
-    if (title !== undefined && title.trim().length === 0) {
-      return { success: false, error: 'Title is required and cannot be empty' };
-    }
-    if (title !== undefined && title.length > MAX_TITLE_LENGTH) {
-      return { success: false, error: `Title must not exceed ${MAX_TITLE_LENGTH} characters` };
-    }
-    if (description !== undefined && description.length > MAX_DESCRIPTION_LENGTH) {
-      return { success: false, error: `Description must not exceed ${MAX_DESCRIPTION_LENGTH} characters` };
-    }
-    if (status !== undefined && !VALID_STATUSES.includes(status as typeof VALID_STATUSES[number])) {
-      return { success: false, error: `Invalid status '${status}'. Must be one of: ${VALID_STATUSES.join(', ')}` };
-    }
-    if (!store.get(id)) {
-      return { success: false, error: `Todo with id '${id}' not found` };
+    if (todos === undefined) {
+      return { content: "'todos' array is required", is_error: true };
     }
 
-    const fields: Record<string, unknown> = {};
-    if (title !== undefined) fields.title = title;
-    if (description !== undefined) fields.description = description;
-    if (status !== undefined) fields.status = status;
+    if (!Array.isArray(todos)) {
+      return { content: "'todos' must be an array", is_error: true };
+    }
 
-    return { success: true, data: store.update(id, fields as Parameters<typeof store.update>[1]) };
-  };
-}
+    const result = z.array(TodoSchema).safeParse(todos);
+    if (!result.success) {
+      const issue = result.error.issues[0];
+      const index = issue.path[0] as number;
+      return { content: `Todo at index ${index}: ${issue.message}`, is_error: true };
+    }
 
-/** 删除任务 handler */
-export function createDeleteTodoHandler(store: TodoStore): ToolHandler {
-  return (params: Record<string, unknown>): ToolResult => {
-    const id = params.id as string;
-    if (!store.get(id)) return { success: false, error: `Todo with id '${id}' not found` };
-    store.delete(id);
-    return { success: true, data: { message: `Todo '${id}' deleted successfully` } };
+    store.write(result.data);
+    return { content: JSON.stringify({ todos: store.read() }), is_error: false };
   };
 }

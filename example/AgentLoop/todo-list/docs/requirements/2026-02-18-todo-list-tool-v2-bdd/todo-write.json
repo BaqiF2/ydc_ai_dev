@@ -1,0 +1,204 @@
+[
+  {
+    "category": "functional",
+    "feature": "TodoWrite",
+    "description": "TodoWrite 工具：接收完整 todos 数组，整体替换当前任务列表",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "写入多个任务",
+        "description": "成功写入包含多个任务的 todos 数组",
+        "steps": {
+          "given": [
+            "工具注册表已创建并注册了 TodoWrite 工具",
+            "store 中当前没有任务"
+          ],
+          "when": [
+            "调用 executeTool 传入 tool_use_id='toolu_01' 和 todos 数组包含 3 个合法 todo 项"
+          ],
+          "then": [
+            "返回 ToolResult 的 type 为 'tool_result'",
+            "返回 ToolResult 的 tool_use_id 为 'toolu_01'",
+            "返回 content 为 JSON 字符串，解析后 todos 数组长度为 3",
+            "is_error 为 false 或未设置"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "整体替换已有任务",
+        "description": "TodoWrite 整体替换模式：新写入的 todos 完全覆盖旧数据",
+        "steps": {
+          "given": [
+            "store 中已存在 2 个任务",
+            "工具注册表已创建"
+          ],
+          "when": [
+            "调用 TodoWrite 传入包含 1 个新任务的 todos 数组"
+          ],
+          "then": [
+            "返回 content 解析后 todos 数组长度为 1",
+            "原来的 2 个任务不再存在"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "空数组清空所有任务",
+        "description": "传入空 todos 数组等价于清空所有任务",
+        "steps": {
+          "given": [
+            "store 中已存在 3 个任务"
+          ],
+          "when": [
+            "调用 TodoWrite 传入 { todos: [] }"
+          ],
+          "then": [
+            "返回 content 解析后 todos 为空数组"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "todos 字段缺失",
+        "description": "params 中没有 todos 字段时返回错误",
+        "steps": {
+          "given": [
+            "工具注册表已创建"
+          ],
+          "when": [
+            "调用 TodoWrite 传入空对象 {}"
+          ],
+          "then": [
+            "返回 is_error 为 true",
+            "返回 content 包含 \"'todos' array is required\"",
+            "store 中数据不变"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "todos 不是数组",
+        "description": "todos 不是数组类型时返回错误",
+        "steps": {
+          "given": [
+            "工具注册表已创建"
+          ],
+          "when": [
+            "调用 TodoWrite 传入 { todos: 'not-an-array' }"
+          ],
+          "then": [
+            "返回 is_error 为 true",
+            "返回 content 包含 \"'todos' must be an array\""
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "content 为空字符串",
+        "description": "todo 项的 content 为空字符串时返回错误",
+        "steps": {
+          "given": [
+            "工具注册表已创建"
+          ],
+          "when": [
+            "调用 TodoWrite 传入 todos 数组，其中第 2 项（index 1）的 content 为空字符串"
+          ],
+          "then": [
+            "返回 is_error 为 true",
+            "返回 content 包含 \"Todo at index 1: content is required and cannot be empty\"",
+            "store 中数据不变"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "content 仅空白字符",
+        "description": "todo 项的 content 仅包含空白字符时返回错误",
+        "steps": {
+          "given": [
+            "工具注册表已创建"
+          ],
+          "when": [
+            "调用 TodoWrite 传入 todos 数组，其中第 1 项（index 0）的 content 为 '   '"
+          ],
+          "then": [
+            "返回 is_error 为 true",
+            "返回 content 包含 \"Todo at index 0: content is required and cannot be empty\""
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "status 无效",
+        "description": "todo 项的 status 不是合法枚举值时返回错误",
+        "steps": {
+          "given": [
+            "工具注册表已创建"
+          ],
+          "when": [
+            "调用 TodoWrite 传入 todos 数组，其中第 1 项（index 0）的 status 为 'invalid'"
+          ],
+          "then": [
+            "返回 is_error 为 true",
+            "返回 content 包含 \"Todo at index 0: invalid status 'invalid'. Must be one of: pending, in_progress, completed\""
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "activeForm 为空",
+        "description": "todo 项的 activeForm 为空字符串时返回错误",
+        "steps": {
+          "given": [
+            "工具注册表已创建"
+          ],
+          "when": [
+            "调用 TodoWrite 传入 todos 数组，其中第 1 项（index 0）的 activeForm 为空字符串"
+          ],
+          "then": [
+            "返回 is_error 为 true",
+            "返回 content 包含 \"Todo at index 0: activeForm is required and cannot be empty\""
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "校验失败不修改 store",
+        "description": "校验失败时 store 中的数据保持不变",
+        "steps": {
+          "given": [
+            "store 中已存在 2 个任务"
+          ],
+          "when": [
+            "调用 TodoWrite 传入包含无效 todo 项的数组"
+          ],
+          "then": [
+            "返回 is_error 为 true",
+            "store 中 todos 数组长度仍为 2",
+            "原有任务内容不变"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "遇首个错误即返回",
+        "description": "多个 todo 项均有错误时，仅报告第一个错误",
+        "steps": {
+          "given": [
+            "工具注册表已创建"
+          ],
+          "when": [
+            "调用 TodoWrite 传入 todos 数组，index 0 的 content 为空，index 1 的 status 无效"
+          ],
+          "then": [
+            "返回 is_error 为 true",
+            "返回 content 包含 'index 0' 的错误信息",
+            "不包含 'index 1' 的错误信息"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]
