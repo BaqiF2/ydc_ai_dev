@@ -73,13 +73,13 @@ Test root:          tests/
 | 1.3 | F-004 Summary Generation | core/summarizer | 5 | Done |
 | 1.4 | F-005 Message Assembly | core/compact | 4 | Done |
 | 1.5 | F-006 Message Persistence | infrastructure/file-writer | 4 | Done |
-| 1.6 | F-007 Fault Tolerance | core/compact + infrastructure/llm-client | 4 | In Progress |
+| 1.6 | F-007 Fault Tolerance | core/compact + infrastructure/llm-client | 4 | Done |
 
 ### Phase 2: Should Features
 
 | # | Feature | Module | Scenarios | Status |
 |---|---------|--------|-----------|--------|
-| 2.1 | F-008 Statistics | core/compact | 2 | Pending |
+| 2.1 | F-008 Statistics | core/compact | 2 | In Progress |
 
 ### Phase 3: Integration Verification
 
@@ -184,6 +184,8 @@ E2E smoke tests are not applicable — this is a library module with no protocol
 | F-005 Message Assembly | In Progress | Done | 4/4 scenarios, commit 0f92cb7 |
 | F-006 Message Persistence | Pending | In Progress | Starting RED phase |
 | F-006 Message Persistence | In Progress | Done | 4/4 scenarios, commit 3d56c16 |
+| F-007 Fault Tolerance | Pending | In Progress | Starting RED phase |
+| F-007 Fault Tolerance | In Progress | Done | 4/4 scenarios, commit 1c38e9f |
 
 ## Final Verification Checklist
 

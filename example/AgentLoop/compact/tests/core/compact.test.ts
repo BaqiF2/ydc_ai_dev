@@ -614,4 +614,61 @@ describe('compactMessages', () => {
     expect(result.compacted).toBe(false);
     expect(llm.summarize).toHaveBeenCalledTimes(1);
   });
+
+  // BDD Scenario: F-008 压缩成功后返回完整统计信息
+  it('should return correct stats after successful compaction', async () => {
+    // Build 30 messages: 1 system + 29 user/assistant
+    const messages: Message[] = [msg('system', 'sys prompt')];
+    for (let i = 0; i < 29; i++) {
+      messages.push(msg(i % 2 === 0 ? 'user' : 'assistant', `msg-${i + 1}`));
+    }
+
+    // Call sequence:
+    // 1. Total: 190000 (above threshold 184000)
+    // 2-6. Tail scan from end: 5 messages × 6000 = 30000 (>= 30000 budget, stop)
+    // 7. Compacted total: 60000
+    const llm: LlmClient = {
+      countTokens: vi.fn()
+        .mockResolvedValueOnce(190000)
+        .mockResolvedValueOnce(6000)
+        .mockResolvedValueOnce(6000)
+        .mockResolvedValueOnce(6000)
+        .mockResolvedValueOnce(6000)
+        .mockResolvedValueOnce(6000)
+        .mockResolvedValueOnce(60000),
+      summarize: vi.fn().mockResolvedValueOnce('Compacted summary'),
+    };
+    const fw = createMockFileWriter();
+    const logger = createMockLogger();
+
+    const result = await compactMessages(messages, {
+      llmClient: llm, fileWriter: fw, logger,
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+      tailRetentionRatio: 0.15,
+    });
+
+    expect(result.compacted).toBe(true);
+    expect(result.stats).not.toBeNull();
+    const stats = result.stats!;
+    expect(stats.originalTokenCount).toBe(190000);
+    expect(stats.compactedTokenCount).toBe(60000);
+    expect(stats.compactionRatio).toBeCloseTo(60000 / 190000, 5);
+    expect(stats.compactedMessageCount).toBe(24);
+    expect(stats.retainedMessageCount).toBe(6); // 1 head + 5 tail
+  });
+
+  // BDD Scenario: F-008 未执行压缩时统计信息为空
+  it('should return null stats when compaction is not triggered', async () => {
+    const messages = [msg('user', 'hello')];
+    const llm = createMockLlmClient([100000]); // below threshold 184000
+    const fw = createMockFileWriter();
+
+    const result = await compactMessages(messages, {
+      llmClient: llm, fileWriter: fw,
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+    });
+
+    expect(result.compacted).toBe(false);
+    expect(result.stats).toBeNull();
+  });
 });
