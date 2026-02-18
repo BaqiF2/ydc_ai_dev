@@ -13,6 +13,7 @@ import {
 } from '../../src/core/compact.js';
 import type {
   Message,
+  CompactOptions,
   LlmClient,
   FileWriter,
   Logger,
@@ -283,13 +284,13 @@ describe('compactMessages', () => {
 
   it('should throw if llmClient is not provided', async () => {
     await expect(
-      compactMessages([msg('user', 'hi')], { fileWriter: createMockFileWriter() } as any),
+      compactMessages([msg('user', 'hi')], { fileWriter: createMockFileWriter() } as Partial<CompactOptions> as CompactOptions),
     ).rejects.toThrow('llmClient is required');
   });
 
   it('should throw if fileWriter is not provided', async () => {
     await expect(
-      compactMessages([msg('user', 'hi')], { llmClient: createMockLlmClient() } as any),
+      compactMessages([msg('user', 'hi')], { llmClient: createMockLlmClient() } as Partial<CompactOptions> as CompactOptions),
     ).rejects.toThrow('fileWriter is required');
   });
 
