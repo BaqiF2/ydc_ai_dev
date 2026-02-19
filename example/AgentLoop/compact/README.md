@@ -1,11 +1,11 @@
  # Agent Context Compact
 
-Agent Loop 上下文压缩模块 — 当历史消息 token 总量接近上下文窗口上限时，通过独立 LLM 调用将中间历史消息生成结构化摘要，替换原始消息以释放 token 空间。
+Agent Loop 上下文压缩模块 — 当历史消息 token 总量接近上下文窗口上限时，通过独立 LLM 调用将所有历史消息（Head 之后）生成结构化摘要，并从磁盘恢复最近读取的文件内容，替换原始消息以释放 token 空间。
 
 ## 核心特性
 
-- **保留头尾、摘要中间** — system prompt 和最新对话完整保留，仅压缩中间历史
-- **多次压缩** — 支持任意长度会话，前次摘要可参与后续压缩
+- **全量压缩 + 文件恢复** — system prompt 保留，其余全部压缩为摘要，最近读取的文件从磁盘恢复注入
+- **多次压缩** — 支持任意长度会话，前次摘要和恢复消息可参与后续压缩
 - **原始消息持久化** — 压缩前自动将原始消息保存为 JSON 文件，支持审计和回溯
 - **容错与重试** — LLM 调用失败自动重试，全部失败则跳过压缩、返回原始消息
 - **零配置可用** — 所有参数有合理默认值，核心场景只需调用 `compactMessages()` 一个函数
@@ -33,7 +33,7 @@ if (await shouldCompact(messages)) {
   });
 
   console.log(result.compacted);  // true
-  console.log(result.stats);      // 压缩统计信息
+  console.log(result.stats);      // 压缩统计信息（含文件恢复指标）
   // result.messages 为压缩后的消息列表
 }
 ```
@@ -44,10 +44,13 @@ if (await shouldCompact(messages)) {
 |--------|--------|------|
 | `CONTEXT_TOKEN_LIMIT` | `200000` | 上下文 token 上限 |
 | `COMPACT_THRESHOLD_RATIO` | `0.92` | 触发压缩的阈值比例 |
-| `TAIL_RETENTION_RATIO` | `0.15` | 尾部保留的 token 比例 |
 | `SUMMARY_MODEL` | `claude-haiku-4-5-20251001` | 用于生成摘要的模型 |
+| `SUMMARY_MAX_WORDS` | `1200` | 摘要最大字数 |
 | `COMPACT_MAX_RETRIES` | `2` | LLM 调用失败最大重试次数 |
 | `COMPACT_OUTPUT_DIR` | `.compact` | 原始消息持久化目录 |
+| `MAX_RESTORE_FILES` | `5` | 文件恢复最大数量 |
+| `MAX_RESTORE_TOKENS_PER_FILE` | `5000` | 单个恢复文件最大 token 数 |
+| `MAX_RESTORE_TOKENS_TOTAL` | `50000` | 恢复文件总 token 数上限 |
 | `ANTHROPIC_API_KEY` | — | Anthropic API 密钥 |
 | `ANTHROPIC_BASE_URL` | — | Anthropic API 自定义 Base URL |
 
@@ -82,11 +85,12 @@ src/
 ├── core/
 │   ├── types.ts                  # 类型定义与配置常量
 │   ├── token-counter.ts          # Token 计数
-│   ├── compact.ts                # 压缩主流程（分区、组装、重试）
+│   ├── compact.ts                # 压缩主流程（分区、文件恢复、组装、重试）
 │   └── summarizer.ts             # LLM 摘要生成
 └── infrastructure/
     ├── llm-client.ts             # Anthropic SDK 实现
-    └── file-writer.ts            # Node.js 文件写入实现
+    ├── file-writer.ts            # Node.js 文件写入实现
+    └── file-reader.ts            # Node.js 文件读取实现
 
 examples/
 ├── mock-llm-client.ts            # 本地 Mock LLM 客户端
@@ -102,6 +106,7 @@ tests/
 │   ├── summarizer.test.ts
 │   └── token-counter.test.ts
 └── infrastructure/               # 基础设施集成测试
+    ├── file-reader.test.ts
     ├── file-writer.test.ts
     └── llm-client.test.ts
 ```
@@ -130,7 +135,8 @@ npm run check           # 完整检查（lint + dep-check + coverage + build）
 
 ## 设计文档
 
-- [PRD 需求文档](docs/requirements/2026-02-17-context-compact-prd.md)
+- [PRD 需求文档 v1](docs/requirements/2026-02-17-context-compact-prd.md)
+- [PRD 需求文档 v2 — Full Compression + File Restoration](docs/requirements/2026-02-19-compact-full-compression-prd.md)
 - [架构设计](docs/architecture/architecture.md)
 - [BDD 执行计划](docs/plans/bdd-execution-plan.md)
 - [ADR 决策记录](docs/architecture/adr/)

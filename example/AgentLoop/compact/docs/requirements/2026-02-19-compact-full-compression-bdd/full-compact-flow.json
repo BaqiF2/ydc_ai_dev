@@ -1,0 +1,110 @@
+[
+  {
+    "category": "functional",
+    "feature": "full-compact-flow",
+    "description": "全量压缩主流程：端到端验证从触发到组装的完整压缩流程",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "端到端全量压缩：带文件恢复",
+        "description": "完整验证压缩主流程，包括分区、摘要、文件恢复、组装",
+        "steps": {
+          "given": [
+            "消息列表 token 总量超过压缩阈值",
+            "消息列表包含 1 条 system 消息和多条对话消息",
+            "对话中包含 2 次 read_file 调用，对应文件存在于磁盘"
+          ],
+          "when": [
+            "执行 compactMessages"
+          ],
+          "then": [
+            "CompactResult.compacted 为 true",
+            "结果消息以 system 消息开头",
+            "紧接着为 Summary user/assistant pair",
+            "然后为 2 组 restored file user/assistant pairs",
+            "CompactResult.stats.restoredFileCount 为 2",
+            "CompactResult.stats.restoredTokenCount 大于 0",
+            "原始消息已持久化到文件"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "端到端全量压缩：无文件恢复",
+        "description": "当对话中没有 read_file 调用时的压缩流程",
+        "steps": {
+          "given": [
+            "消息列表 token 总量超过压缩阈值",
+            "对话中没有 read_file 工具调用"
+          ],
+          "when": [
+            "执行 compactMessages"
+          ],
+          "then": [
+            "CompactResult.compacted 为 true",
+            "结果消息仅包含 Head + Summary pair",
+            "CompactResult.stats.restoredFileCount 为 0",
+            "CompactResult.stats.restoredTokenCount 为 0"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "未达阈值：不执行压缩",
+        "description": "当 token 总量未达到阈值时，返回原始消息",
+        "steps": {
+          "given": [
+            "消息列表 token 总量低于压缩阈值"
+          ],
+          "when": [
+            "执行 compactMessages"
+          ],
+          "then": [
+            "CompactResult.compacted 为 false",
+            "CompactResult.messages 与输入消息列表相同",
+            "CompactResult.stats 为 null"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "LLM 摘要失败：容错跳过压缩",
+        "description": "当 LLM 摘要调用全部失败时，返回原始消息",
+        "steps": {
+          "given": [
+            "消息列表 token 总量超过压缩阈值",
+            "LLM 客户端摘要调用始终抛出错误"
+          ],
+          "when": [
+            "执行 compactMessages"
+          ],
+          "then": [
+            "CompactResult.compacted 为 false",
+            "CompactResult.messages 与输入消息列表相同",
+            "错误已记录到日志"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "多次压缩：前次摘要和恢复消息也被压缩",
+        "description": "验证多次压缩时，前次生成的摘要和恢复文件消息也参与新一轮压缩",
+        "steps": {
+          "given": [
+            "第一次压缩已完成，结果消息中包含 Summary pair 和 restored file pairs",
+            "在此基础上追加新的对话消息，使 token 再次超过阈值"
+          ],
+          "when": [
+            "第二次执行 compactMessages"
+          ],
+          "then": [
+            "CompactResult.compacted 为 true",
+            "结果消息中包含新的 Summary（涵盖前次摘要内容）",
+            "结果消息中包含新的 restored file pairs（基于最新 read_file 调用）"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

@@ -30,11 +30,11 @@ function makeOptions(llmClient: MockLlmClient): CompactOptions {
   return {
     contextTokenLimit: TOKEN_LIMIT,
     compactThresholdRatio: 0.8,
-    tailRetentionRatio: 0.15,
     llmClient,
     fileWriter: new NodeFileWriter(),
     outputDir: '.compact-examples',
     sessionId: 'example-02',
+    maxRestoreFiles: 0,
   };
 }
 

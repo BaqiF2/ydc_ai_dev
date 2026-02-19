@@ -4,6 +4,7 @@
  * Core exports:
  * - AnthropicLlmClient — LlmClient implementation using Anthropic SDK (supports apiKey + baseURL)
  * - estimateTokens — Local fallback for token estimation (~4 chars per token)
+ * - estimateStringTokens — Estimate token count for a plain text string
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -46,15 +47,19 @@ function extractSystemPrompt(
 }
 
 /**
+ * Estimate token count for a plain text string based on character count.
+ */
+export function estimateStringTokens(text: string): number {
+  return Math.ceil(text.length / CHARS_PER_TOKEN);
+}
+
+/**
  * Estimate token count locally based on character count.
  * Used as fallback when the provider does not support the countTokens API.
  */
 export function estimateTokens(messages: Message[]): number {
-  let totalChars = 0;
-  for (const msg of messages) {
-    totalChars += serializeMessage(msg).length;
-  }
-  return Math.ceil(totalChars / CHARS_PER_TOKEN);
+  const combined = messages.map((msg) => serializeMessage(msg)).join('');
+  return estimateStringTokens(combined);
 }
 
 /**

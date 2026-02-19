@@ -1,0 +1,126 @@
+[
+  {
+    "category": "functional",
+    "feature": "file-reader-interface",
+    "description": "FileReader 接口：core 层定义、infrastructure 层实现的文件读取接口",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "NodeFileReader 正常读取文件",
+        "description": "使用 NodeFileReader 从磁盘读取文件内容",
+        "steps": {
+          "given": [
+            "磁盘上存在文件 /project/src/index.ts，内容为 'console.log(\"hello\")'",
+            "使用 NodeFileReader 实例"
+          ],
+          "when": [
+            "调用 fileReader.read('/project/src/index.ts')"
+          ],
+          "then": [
+            "返回字符串 'console.log(\"hello\")'"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "NodeFileReader 检查文件存在性",
+        "description": "使用 NodeFileReader 检查文件是否存在",
+        "steps": {
+          "given": [
+            "磁盘上存在文件 /project/src/index.ts",
+            "磁盘上不存在文件 /project/src/missing.ts"
+          ],
+          "when": [
+            "分别调用 fileReader.exists 检查两个路径"
+          ],
+          "then": [
+            "index.ts 返回 true",
+            "missing.ts 返回 false"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "NodeFileReader 读取不存在的文件抛出错误",
+        "description": "当文件不存在时，read 方法抛出错误",
+        "steps": {
+          "given": [
+            "磁盘上不存在文件 /project/src/missing.ts"
+          ],
+          "when": [
+            "调用 fileReader.read('/project/src/missing.ts')"
+          ],
+          "then": [
+            "抛出错误（ENOENT 或类似文件未找到错误）"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  },
+  {
+    "category": "security",
+    "feature": "path-security",
+    "description": "路径安全：防止路径穿越攻击",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "路径穿越尝试被拒绝",
+        "description": "使用 '../' 试图访问 workDir 之外的文件时被拒绝",
+        "steps": {
+          "given": [
+            "workDir 为 '/project'",
+            "read_file 路径为 '../../etc/passwd'"
+          ],
+          "when": [
+            "文件恢复过程解析该路径"
+          ],
+          "then": [
+            "解析后路径 '/etc/passwd' 不在 '/project' 内",
+            "该文件被跳过",
+            "记录 warn 日志"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "绝对路径在 workDir 内：允许访问",
+        "description": "当绝对路径在 workDir 内时，允许读取",
+        "steps": {
+          "given": [
+            "workDir 为 '/project'",
+            "read_file 路径为 '/project/src/index.ts'",
+            "文件存在于磁盘"
+          ],
+          "when": [
+            "文件恢复过程解析该路径"
+          ],
+          "then": [
+            "路径校验通过",
+            "文件内容被正常恢复"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "符号链接穿越被拒绝",
+        "description": "当路径通过符号链接指向 workDir 之外时被拒绝",
+        "steps": {
+          "given": [
+            "workDir 为 '/project'",
+            "/project/link 是指向 /etc 的符号链接",
+            "read_file 路径为 'link/passwd'"
+          ],
+          "when": [
+            "文件恢复过程解析该路径（resolve 后）"
+          ],
+          "then": [
+            "解析后实际路径 '/etc/passwd' 不在 '/project' 内",
+            "该文件被跳过"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

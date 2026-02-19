@@ -1,0 +1,44 @@
+[
+  {
+    "category": "functional",
+    "feature": "compact-stats",
+    "description": "统计信息：压缩结果中包含文件恢复相关统计指标",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "统计信息包含恢复文件数和 token 数",
+        "description": "验证 CompactStats 中新增的 restoredFileCount 和 restoredTokenCount 字段",
+        "steps": {
+          "given": [
+            "压缩过程中恢复了 3 个文件，总 token 数为 8000"
+          ],
+          "when": [
+            "压缩完成，获取 CompactResult.stats"
+          ],
+          "then": [
+            "stats.restoredFileCount 为 3",
+            "stats.restoredTokenCount 为 8000"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "无文件恢复时统计为 0",
+        "description": "当没有文件恢复时，相关统计字段为 0",
+        "steps": {
+          "given": [
+            "压缩过程中没有恢复任何文件"
+          ],
+          "when": [
+            "压缩完成，获取 CompactResult.stats"
+          ],
+          "then": [
+            "stats.restoredFileCount 为 0",
+            "stats.restoredTokenCount 为 0"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

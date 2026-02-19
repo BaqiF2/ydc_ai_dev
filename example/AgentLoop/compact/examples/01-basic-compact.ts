@@ -2,8 +2,9 @@
  * Example 01: Basic Compaction — Demonstrates the core compaction workflow.
  *
  * This example builds a simulated Agent Loop conversation that exceeds the token
- * threshold, then runs compactMessages() to compress the middle messages into a
- * structured summary. Uses MockLlmClient for local testing without API calls.
+ * threshold, then runs compactMessages() to fully compress all messages after
+ * the system prompt into a structured summary. Uses MockLlmClient for local
+ * testing without API calls.
  *
  * Usage:
  *   npx tsx examples/01-basic-compact.ts
@@ -60,15 +61,15 @@ async function main() {
     return;
   }
 
-  // Step 3: Run compaction
+  // Step 3: Run compaction (v2: full compression, no tail retention)
   const options: CompactOptions = {
     contextTokenLimit: EXAMPLE_TOKEN_LIMIT,
     compactThresholdRatio: EXAMPLE_THRESHOLD_RATIO,
-    tailRetentionRatio: 0.15,
     llmClient,
     fileWriter,
     outputDir: '.compact-examples',
     sessionId: 'example-01',
+    maxRestoreFiles: 0, // disable file restoration in this basic example
   };
 
   const result = await compactMessages(messages, options);
@@ -85,6 +86,8 @@ async function main() {
     console.log(`Compression ratio: ${(result.stats.compactionRatio * 100).toFixed(1)}%`);
     console.log(`Messages compacted: ${result.stats.compactedMessageCount}`);
     console.log(`Messages retained:  ${result.stats.retainedMessageCount}`);
+    console.log(`Files restored:     ${result.stats.restoredFileCount}`);
+    console.log(`Restored tokens:    ${result.stats.restoredTokenCount}`);
   }
 
   console.log(`\n--- Compacted Messages (${result.messages.length} total) ---`);

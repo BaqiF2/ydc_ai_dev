@@ -59,11 +59,11 @@ async function main() {
   const options: CompactOptions = {
     contextTokenLimit: TOKEN_LIMIT,
     compactThresholdRatio: 0.8,
-    tailRetentionRatio: 0.15,
     llmClient,
     fileWriter,
     outputDir: '.compact-examples',
     sessionId: 'example-04-real-api',
+    maxRestoreFiles: 0,
   };
 
   const result = await compactMessages(messages, options);

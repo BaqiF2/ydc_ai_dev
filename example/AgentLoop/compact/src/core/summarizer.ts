@@ -2,7 +2,7 @@
  * Summarizer — Constructs prompts and delegates summarization to LlmClient.
  *
  * Core exports:
- * - summarize — Generate a structured summary of middle messages via LLM
+ * - summarize — Generate a structured summary of rest messages via LLM
  * - buildSummarizePrompt — Construct the summarization prompt text
  * - serializeForSummary — Serialize messages into readable format for LLM input
  */
@@ -38,13 +38,14 @@ Rules:
    - **Conversation goals and key decisions** — What was the user trying to accomplish? What important choices were made?
    - **File operations** — Which files were read, created, modified, or deleted? List specific file paths.
    - **Tool call summary** — Which tools were called, what were the key results (success/failure)?
-   - **Current task status** — What has been completed? What remains to be done?
+   - **Current task status** — What has been completed? What remains to be done? Detail what was done in the most recent interaction and what the next logical step should be.
    - **Errors and resolutions** — What errors occurred and how were they resolved?
 
 2. For each dimension, include 3-5 bullet points maximum, each no longer than 2 sentences.
 3. If a dimension has no relevant content in the conversation, omit that section entirely.
 4. Total summary length MUST NOT exceed ${SUMMARY_MAX_WORDS} words.
 5. Always output in English.
+6. Pay special attention to the MOST RECENT messages — summarize the current task state, what was just done, and what the next logical step should be. This information is critical because the original recent messages will NOT be preserved.
 </INSTRUCTIONS>
 
 <OUTPUT_FORMAT>
@@ -75,15 +76,15 @@ ${serializedMessages}
 }
 
 /**
- * Generate a structured summary of the middle messages by calling the LLM.
+ * Generate a structured summary of the rest messages by calling the LLM.
  * Throws an error if the LLM returns empty content.
  */
 export async function summarize(
-  middleMessages: Message[],
+  restMessages: Message[],
   llmClient: LlmClient,
   model: string = SUMMARY_MODEL,
 ): Promise<string> {
-  const serialized = serializeForSummary(middleMessages);
+  const serialized = serializeForSummary(restMessages);
   const prompt = buildSummarizePrompt(serialized);
   const result = await llmClient.summarize(prompt, model);
 

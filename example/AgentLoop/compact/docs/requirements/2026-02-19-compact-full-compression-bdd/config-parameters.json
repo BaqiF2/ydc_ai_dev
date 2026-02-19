@@ -1,0 +1,82 @@
+[
+  {
+    "category": "functional",
+    "feature": "config-parameters",
+    "description": "配置参数变更：移除 tailRetentionRatio，新增文件恢复相关参数",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "tailRetentionRatio 已移除",
+        "description": "验证 CompactOptions 中不再接受 tailRetentionRatio 参数",
+        "steps": {
+          "given": [
+            "CompactOptions 类型定义"
+          ],
+          "when": [
+            "检查 CompactOptions 的属性列表"
+          ],
+          "then": [
+            "不存在 tailRetentionRatio 属性"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "新增参数使用默认值",
+        "description": "验证文件恢复相关参数的默认值",
+        "steps": {
+          "given": [
+            "未在 CompactOptions 中设置文件恢复参数"
+          ],
+          "when": [
+            "读取各参数的实际生效值"
+          ],
+          "then": [
+            "maxRestoreFiles 默认为 5",
+            "maxRestoreTokensPerFile 默认为 5000",
+            "maxRestoreTokensTotal 默认为 50000",
+            "workDir 默认为 process.cwd()"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "新增参数可通过环境变量配置",
+        "description": "验证文件恢复参数支持环境变量覆盖",
+        "steps": {
+          "given": [
+            "设置环境变量 MAX_RESTORE_FILES=10",
+            "设置环境变量 MAX_RESTORE_TOKENS_PER_FILE=8000",
+            "设置环境变量 MAX_RESTORE_TOKENS_TOTAL=80000"
+          ],
+          "when": [
+            "读取各参数的实际生效值"
+          ],
+          "then": [
+            "maxRestoreFiles 为 10",
+            "maxRestoreTokensPerFile 为 8000",
+            "maxRestoreTokensTotal 为 80000"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "CompactOptions 参数优先于环境变量",
+        "description": "验证通过 CompactOptions 直接传入的值优先于环境变量",
+        "steps": {
+          "given": [
+            "环境变量 MAX_RESTORE_FILES=10",
+            "CompactOptions 中设置 maxRestoreFiles=3"
+          ],
+          "when": [
+            "读取 maxRestoreFiles 的实际生效值"
+          ],
+          "then": [
+            "maxRestoreFiles 为 3（CompactOptions 优先）"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

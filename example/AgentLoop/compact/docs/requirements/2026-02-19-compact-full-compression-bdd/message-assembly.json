@@ -1,0 +1,115 @@
+[
+  {
+    "category": "functional",
+    "feature": "message-assembly",
+    "description": "消息组装：将 Head + Summary pair + Restored file pairs 组装为新消息列表，维持合法轮次顺序",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "完整组装：Head + Summary + Restored files",
+        "description": "包含所有部分的标准组装流程",
+        "steps": {
+          "given": [
+            "Head 包含 1 条 system 消息",
+            "Summary 为非空字符串",
+            "恢复消息列表包含 2 条 user 消息"
+          ],
+          "when": [
+            "执行消息组装"
+          ],
+          "then": [
+            "结果消息列表共 7 条消息",
+            "第 1 条为 system 消息（Head）",
+            "第 2 条为 user 消息，content 以 '[Conversation compressed]' 开头",
+            "第 3 条为 assistant 消息，content 为 'Understood. I have the context from the compressed conversation. Continuing work.'",
+            "第 4 条为 user 消息，content 以 '[Restored after compact]' 开头",
+            "第 5 条为 assistant 消息，content 为 'Noted, file content restored.'",
+            "第 6 条为 user 消息，content 以 '[Restored after compact]' 开头",
+            "第 7 条为 assistant 消息，content 为 'Noted, file content restored.'"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "无文件恢复：仅 Head + Summary pair",
+        "description": "当恢复消息列表为空时，组装结果仅含 Head 和 Summary pair",
+        "steps": {
+          "given": [
+            "Head 包含 1 条 system 消息",
+            "Summary 为非空字符串",
+            "恢复消息列表为空数组"
+          ],
+          "when": [
+            "执行消息组装"
+          ],
+          "then": [
+            "结果消息列表共 3 条消息",
+            "第 1 条为 system 消息",
+            "第 2 条为 user 消息（Summary）",
+            "第 3 条为 assistant 消息（确认）"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "无 Head：Summary pair 为首条消息",
+        "description": "当 Head 为空时，Summary pair 作为消息列表的开头",
+        "steps": {
+          "given": [
+            "Head 为空数组",
+            "Summary 为非空字符串",
+            "恢复消息列表包含 1 条 user 消息"
+          ],
+          "when": [
+            "执行消息组装"
+          ],
+          "then": [
+            "结果消息列表共 4 条消息",
+            "第 1 条为 user 消息（Summary）",
+            "第 2 条为 assistant 消息（确认）",
+            "第 3 条为 user 消息（恢复文件）",
+            "第 4 条为 assistant 消息（确认）"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "轮次顺序验证：user/assistant 严格交替",
+        "description": "验证组装后的消息列表中非 system 消息严格遵循 user/assistant 交替顺序",
+        "steps": {
+          "given": [
+            "Head 包含 2 条 system 消息",
+            "Summary 为非空字符串",
+            "恢复消息列表包含 3 条 user 消息"
+          ],
+          "when": [
+            "执行消息组装"
+          ],
+          "then": [
+            "Head 之后的消息严格遵循 user → assistant → user → assistant 交替顺序",
+            "不存在连续两条相同角色的消息（system 除外）"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "不可变性：不修改输入参数",
+        "description": "验证组装过程不修改输入的 head、summary 和 restoredFiles",
+        "steps": {
+          "given": [
+            "记录 head 数组、summary 字符串和 restoredFiles 数组的原始引用和内容"
+          ],
+          "when": [
+            "执行消息组装"
+          ],
+          "then": [
+            "head 数组内容和长度未变",
+            "restoredFiles 数组内容和长度未变",
+            "返回的是新数组，非输入数组的引用"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

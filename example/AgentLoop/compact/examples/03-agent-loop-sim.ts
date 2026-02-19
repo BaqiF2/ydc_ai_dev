@@ -85,11 +85,11 @@ async function runAgentLoop() {
   const options: CompactOptions = {
     contextTokenLimit: TOKEN_LIMIT,
     compactThresholdRatio: THRESHOLD_RATIO,
-    tailRetentionRatio: 0.15,
     llmClient,
     fileWriter,
     outputDir: '.compact-examples',
     sessionId: 'example-03-agent-loop',
+    maxRestoreFiles: 0,
   };
 
   let messages: Message[] = [

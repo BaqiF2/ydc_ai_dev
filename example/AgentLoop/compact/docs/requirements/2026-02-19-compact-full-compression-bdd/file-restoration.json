@@ -1,0 +1,195 @@
+[
+  {
+    "category": "functional",
+    "feature": "file-restoration",
+    "description": "文件恢复：扫描历史消息中的 read_file 工具调用，从磁盘恢复最近读取的文件内容",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "正常恢复：扫描 read_file 调用并恢复文件内容",
+        "description": "从历史消息中提取 read_file 路径，按最近访问优先顺序从磁盘读取文件内容",
+        "steps": {
+          "given": [
+            "消息历史中包含 3 次 read_file 调用，路径分别为 a.ts、b.ts、c.ts",
+            "3 个文件均存在于磁盘且在 workDir 内",
+            "每个文件的 token 数均小于 maxRestoreTokensPerFile"
+          ],
+          "when": [
+            "执行文件恢复"
+          ],
+          "then": [
+            "返回 3 条恢复消息",
+            "每条消息 role 为 user",
+            "每条消息 content 以 '[Restored after compact]' 开头",
+            "恢复顺序为 c.ts、b.ts、a.ts（最近访问优先）"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "无 read_file 调用：返回空数组",
+        "description": "当对话中没有 read_file 工具调用时，不恢复任何文件",
+        "steps": {
+          "given": [
+            "消息历史中没有 read_file 工具调用"
+          ],
+          "when": [
+            "执行文件恢复"
+          ],
+          "then": [
+            "返回空数组"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "文件不存在：跳过并继续",
+        "description": "当文件已被删除时，跳过该文件并继续恢复其他文件",
+        "steps": {
+          "given": [
+            "消息历史中包含 3 次 read_file 调用：a.ts、b.ts、c.ts",
+            "b.ts 已被删除，不存在于磁盘",
+            "a.ts 和 c.ts 正常存在"
+          ],
+          "when": [
+            "执行文件恢复"
+          ],
+          "then": [
+            "返回 2 条恢复消息（c.ts 和 a.ts）",
+            "记录 warn 日志提示 b.ts 不存在"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "路径穿越：跳过 workDir 之外的文件",
+        "description": "当解析后的路径不在 workDir 内时，跳过该文件",
+        "steps": {
+          "given": [
+            "消息历史中包含 read_file 调用，路径为 '../../etc/passwd'",
+            "workDir 为 '/project'"
+          ],
+          "when": [
+            "执行文件恢复"
+          ],
+          "then": [
+            "该文件被跳过，不包含在恢复结果中",
+            "记录 warn 日志提示路径穿越"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "单文件超 token 限制：跳过该文件",
+        "description": "当单个文件的 token 数超过 maxRestoreTokensPerFile 时跳过",
+        "steps": {
+          "given": [
+            "消息历史中包含 2 次 read_file 调用：small.ts（100 tokens）和 large.ts（6000 tokens）",
+            "maxRestoreTokensPerFile 设为 5000"
+          ],
+          "when": [
+            "执行文件恢复"
+          ],
+          "then": [
+            "仅恢复 small.ts",
+            "large.ts 被跳过"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "总 token 超限：达到上限后停止",
+        "description": "当累计恢复 token 数达到 maxRestoreTokensTotal 时停止恢复",
+        "steps": {
+          "given": [
+            "消息历史中包含 5 次 read_file 调用",
+            "每个文件约 4000 tokens",
+            "maxRestoreTokensTotal 设为 10000"
+          ],
+          "when": [
+            "执行文件恢复"
+          ],
+          "then": [
+            "恢复前 2 个文件（约 8000 tokens）",
+            "第 3 个文件使累计超过 10000，停止恢复",
+            "返回 2 条恢复消息"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "maxRestoreFiles 限制：只恢复指定数量",
+        "description": "最多恢复 maxRestoreFiles 个文件",
+        "steps": {
+          "given": [
+            "消息历史中包含 10 次 read_file 调用",
+            "maxRestoreFiles 设为 3",
+            "所有文件均小于 token 限制"
+          ],
+          "when": [
+            "执行文件恢复"
+          ],
+          "then": [
+            "返回 3 条恢复消息",
+            "恢复的是最近访问的 3 个文件"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "同一文件多次读取：只恢复一次",
+        "description": "同一文件被多次 read_file，只恢复一次，顺序取最后一次访问的位置",
+        "steps": {
+          "given": [
+            "消息历史中 read_file 调用顺序为：a.ts、b.ts、a.ts、c.ts",
+            "所有文件正常存在"
+          ],
+          "when": [
+            "执行文件恢复"
+          ],
+          "then": [
+            "返回 3 条恢复消息（不重复）",
+            "恢复顺序为 c.ts、a.ts、b.ts（a.ts 的顺序取第二次访问位置）"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "文件读取失败（OS 错误）：跳过并继续",
+        "description": "当文件读取因权限等原因失败时，跳过该文件",
+        "steps": {
+          "given": [
+            "消息历史中包含 read_file 调用：a.ts 和 b.ts",
+            "a.ts 存在但无读取权限",
+            "b.ts 正常可读"
+          ],
+          "when": [
+            "执行文件恢复"
+          ],
+          "then": [
+            "仅恢复 b.ts",
+            "记录 warn 日志提示 a.ts 读取失败"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "maxRestoreFiles 为 0：不恢复任何文件",
+        "description": "当 maxRestoreFiles 设为 0 时，禁用文件恢复",
+        "steps": {
+          "given": [
+            "消息历史中包含 read_file 调用",
+            "maxRestoreFiles 设为 0"
+          ],
+          "when": [
+            "执行文件恢复"
+          ],
+          "then": [
+            "返回空数组"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

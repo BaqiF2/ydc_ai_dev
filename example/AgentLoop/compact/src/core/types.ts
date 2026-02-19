@@ -7,12 +7,14 @@
  * - Message, ContentBlock, TextBlock, ToolUseBlock, ToolResultBlock — Message model types
  * - CompactOptions — Configuration options for compaction behavior
  * - CompactResult — Return type of compactMessages()
- * - CompactStats — Compression statistics
+ * - CompactStats — Compression statistics (includes file restoration metrics)
  * - LlmClient — Interface for LLM operations (token counting + summarization)
  * - FileWriter — Interface for file persistence
+ * - FileReader — Interface for file reading (used by file restoration)
  * - Logger — Interface for logging
  * - defaultLogger — Default console-based Logger implementation
  * - CONTEXT_TOKEN_LIMIT, COMPACT_THRESHOLD_RATIO, etc. — Configurable constants
+ * - MAX_RESTORE_FILES, MAX_RESTORE_TOKENS_PER_FILE, MAX_RESTORE_TOKENS_TOTAL — File restoration constants
  */
 
 // ---------------------------------------------------------------------------
@@ -28,10 +30,6 @@ const COMPACT_THRESHOLD_RATIO = parseFloat(
   process.env.COMPACT_THRESHOLD_RATIO || '0.92',
 );
 
-const TAIL_RETENTION_RATIO = parseFloat(
-  process.env.TAIL_RETENTION_RATIO || '0.15',
-);
-
 const SUMMARY_MODEL = process.env.SUMMARY_MODEL || 'claude-haiku-4-5-20251001';
 
 const COMPACT_MAX_RETRIES = parseInt(
@@ -42,18 +40,35 @@ const COMPACT_MAX_RETRIES = parseInt(
 const COMPACT_OUTPUT_DIR = process.env.COMPACT_OUTPUT_DIR || '.compact';
 
 const SUMMARY_MAX_WORDS = parseInt(
-  process.env.SUMMARY_MAX_WORDS || '800',
+  process.env.SUMMARY_MAX_WORDS || '1200',
+  10,
+);
+
+const MAX_RESTORE_FILES = parseInt(
+  process.env.MAX_RESTORE_FILES || '5',
+  10,
+);
+
+const MAX_RESTORE_TOKENS_PER_FILE = parseInt(
+  process.env.MAX_RESTORE_TOKENS_PER_FILE || '5000',
+  10,
+);
+
+const MAX_RESTORE_TOKENS_TOTAL = parseInt(
+  process.env.MAX_RESTORE_TOKENS_TOTAL || '50000',
   10,
 );
 
 export {
   CONTEXT_TOKEN_LIMIT,
   COMPACT_THRESHOLD_RATIO,
-  TAIL_RETENTION_RATIO,
   SUMMARY_MODEL,
   COMPACT_MAX_RETRIES,
   COMPACT_OUTPUT_DIR,
   SUMMARY_MAX_WORDS,
+  MAX_RESTORE_FILES,
+  MAX_RESTORE_TOKENS_PER_FILE,
+  MAX_RESTORE_TOKENS_TOTAL,
 };
 
 // ---------------------------------------------------------------------------
@@ -92,14 +107,18 @@ export interface Message {
 export interface CompactOptions {
   contextTokenLimit?: number;
   compactThresholdRatio?: number;
-  tailRetentionRatio?: number;
   summaryModel?: string;
   maxRetries?: number;
   outputDir?: string;
   sessionId?: string;
   llmClient?: LlmClient;
   fileWriter?: FileWriter;
+  fileReader?: FileReader;
   logger?: Logger;
+  maxRestoreFiles?: number;
+  maxRestoreTokensPerFile?: number;
+  maxRestoreTokensTotal?: number;
+  workDir?: string;
 }
 
 export interface CompactStats {
@@ -108,6 +127,8 @@ export interface CompactStats {
   compactionRatio: number;
   compactedMessageCount: number;
   retainedMessageCount: number;
+  restoredFileCount: number;
+  restoredTokenCount: number;
 }
 
 export interface CompactResult {
@@ -119,8 +140,7 @@ export interface CompactResult {
 
 export interface PartitionResult {
   head: Message[];
-  middle: Message[];
-  tail: Message[];
+  rest: Message[];
 }
 
 // ---------------------------------------------------------------------------
@@ -134,6 +154,11 @@ export interface LlmClient {
 
 export interface FileWriter {
   write(filePath: string, content: string): Promise<void>;
+}
+
+export interface FileReader {
+  read(filePath: string): Promise<string>;
+  exists(filePath: string): Promise<boolean>;
 }
 
 export interface Logger {

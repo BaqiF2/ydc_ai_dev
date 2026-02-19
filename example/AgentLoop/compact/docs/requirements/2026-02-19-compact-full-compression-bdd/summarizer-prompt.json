@@ -1,0 +1,61 @@
+[
+  {
+    "category": "functional",
+    "feature": "summarizer-prompt",
+    "description": "摘要 Prompt 调整：强化对最近操作和下一步计划的捕获，提升摘要字数上限",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "Prompt 包含最近操作强调指令",
+        "description": "验证摘要 Prompt 中包含对最近消息的特殊关注指令",
+        "steps": {
+          "given": [
+            "使用默认配置构建摘要 Prompt"
+          ],
+          "when": [
+            "构建 Prompt 模板"
+          ],
+          "then": [
+            "Prompt 中包含 'Pay special attention to the MOST RECENT messages' 指令",
+            "Prompt 中包含 'current task state, what was just done, and what the next logical step should be' 要求",
+            "Prompt 中包含 'original recent messages will NOT be preserved' 说明"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "SUMMARY_MAX_WORDS 默认值为 1200",
+        "description": "验证摘要最大字数默认值已从 800 提升到 1200",
+        "steps": {
+          "given": [
+            "未设置 SUMMARY_MAX_WORDS 环境变量"
+          ],
+          "when": [
+            "读取 SUMMARY_MAX_WORDS 默认值"
+          ],
+          "then": [
+            "SUMMARY_MAX_WORDS 等于 1200"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "Task Status 维度包含最近操作和下一步计划",
+        "description": "验证 Prompt 中 Task Status 维度明确要求描述最近操作和下一步",
+        "steps": {
+          "given": [
+            "使用默认配置构建摘要 Prompt"
+          ],
+          "when": [
+            "构建 Prompt 模板"
+          ],
+          "then": [
+            "Task Status 维度指令中包含对最近一轮交互操作的详细描述要求",
+            "Task Status 维度指令中包含对下一步计划的描述要求"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]

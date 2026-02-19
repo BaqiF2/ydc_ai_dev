@@ -1,6 +1,6 @@
 /**
- * Tests for core compact algorithm — partitioning, assembly, threshold detection,
- * and full compaction workflow.
+ * Tests for core compact algorithm (v2) — partitioning, assembly, file restoration,
+ * threshold detection, and full compaction workflow.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -9,6 +9,7 @@ import {
   shouldCompact,
   partitionMessages,
   assembleMessages,
+  restoreRecentFiles,
   resetCompactionCounter,
 } from '../../src/core/compact.js';
 import type {
@@ -16,6 +17,7 @@ import type {
   CompactOptions,
   LlmClient,
   FileWriter,
+  FileReader,
   Logger,
 } from '../../src/core/types.js';
 
@@ -44,6 +46,16 @@ function createMockFileWriter(): FileWriter {
   };
 }
 
+function createMockFileReader(files: Record<string, string>): FileReader {
+  return {
+    read: vi.fn(async (path: string) => {
+      if (path in files) return files[path];
+      throw new Error('ENOENT');
+    }),
+    exists: vi.fn(async (path: string) => path in files),
+  };
+}
+
 function createMockLogger(): Logger {
   return {
     info: vi.fn(),
@@ -56,8 +68,22 @@ function msg(role: Message['role'], text: string): Message {
   return { role, content: text };
 }
 
+function readFileMsg(filePath: string): Message {
+  return {
+    role: 'assistant',
+    content: [
+      {
+        type: 'tool_use',
+        id: `tool_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        name: 'read_file',
+        input: { path: filePath },
+      },
+    ],
+  };
+}
+
 // ---------------------------------------------------------------------------
-// Tests
+// Tests: shouldCompact
 // ---------------------------------------------------------------------------
 
 describe('shouldCompact', () => {
@@ -97,7 +123,6 @@ describe('shouldCompact', () => {
     expect(result).toBe(true);
   });
 
-  // BDD Scenario: 使用自定义配置参数
   it('should use custom CompactOptions to calculate threshold', async () => {
     const llm = createMockLlmClient([90000]);
     const messages = [msg('user', 'hello')];
@@ -110,172 +135,470 @@ describe('shouldCompact', () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// Tests: partitionMessages (v2 — Head/Rest, synchronous)
+// ---------------------------------------------------------------------------
+
 describe('partitionMessages', () => {
-  // BDD Scenario: 正常分区：system + 多条消息
-  it('should partition into head(1 system) + middle(7) + tail(3)', async () => {
+  // BDD: 正常分区：system 消息归入 Head，其余归入 Rest
+  it('should partition system messages into head and rest into rest', () => {
     const messages = [
-      msg('system', 'system prompt'),
-      msg('user', 'u1'), msg('assistant', 'a1'),
-      msg('user', 'u2'), msg('assistant', 'a2'),
-      msg('user', 'u3'), msg('assistant', 'a3'),
-      msg('user', 'u4'),
-      msg('user', 'u5'), msg('assistant', 'a5'),
-      msg('user', 'u6'),
-    ];
-    // 11 messages: 1 system + 10 non-system
-    // Tail scan from end: u6=10000, a5=10000, u5=10000 → 30000 >= 30000, stop
-    const llm = createMockLlmClient([10000, 10000, 10000]);
-
-    const result = await partitionMessages(messages, 30000, llm);
-    expect(result.head).toHaveLength(1);
-    expect(result.head[0].role).toBe('system');
-    expect(result.tail).toHaveLength(3);
-    expect(result.middle).toHaveLength(7);
-  });
-
-  // BDD Scenario: 无 system 消息时 Head 为空
-  it('should have empty head when first message is user', async () => {
-    const messages = [
+      msg('system', 'sys1'),
+      msg('system', 'sys2'),
       msg('user', 'u1'), msg('assistant', 'a1'),
       msg('user', 'u2'), msg('assistant', 'a2'),
       msg('user', 'u3'),
     ];
-    // Tail scan: u3=5000 >= 5000, stop
-    const llm = createMockLlmClient([5000]);
 
-    const result = await partitionMessages(messages, 5000, llm);
-    expect(result.head).toHaveLength(0);
-    expect(result.middle.length + result.tail.length).toBe(5);
+    const result = partitionMessages(messages);
+    expect(result.head).toHaveLength(2);
+    expect(result.head[0].role).toBe('system');
+    expect(result.head[1].role).toBe('system');
+    expect(result.rest).toHaveLength(5);
+    expect(result.head.length + result.rest.length).toBe(messages.length);
   });
 
-  // BDD Scenario: 多条 system 消息全部归入 Head
-  it('should put all consecutive system messages in head', async () => {
+  // BDD: 无 system 消息：所有消息归入 Rest
+  it('should have empty head when no system messages', () => {
+    const messages = [
+      msg('user', 'u1'), msg('assistant', 'a1'),
+      msg('user', 'u2'), msg('assistant', 'a2'),
+    ];
+
+    const result = partitionMessages(messages);
+    expect(result.head).toHaveLength(0);
+    expect(result.rest).toHaveLength(4);
+  });
+
+  // BDD: 只有 system 消息：Rest 为空
+  it('should have empty rest when only system messages', () => {
+    const messages = [
+      msg('system', 'sys1'),
+      msg('system', 'sys2'),
+      msg('system', 'sys3'),
+    ];
+
+    const result = partitionMessages(messages);
+    expect(result.head).toHaveLength(3);
+    expect(result.rest).toHaveLength(0);
+  });
+
+  // BDD: 空消息列表
+  it('should return empty head and rest for empty messages', () => {
+    const result = partitionMessages([]);
+    expect(result.head).toHaveLength(0);
+    expect(result.rest).toHaveLength(0);
+  });
+
+  // BDD: system 消息不连续：仅开头连续的归入 Head
+  it('should only put consecutive leading system messages in head', () => {
     const messages = [
       msg('system', 'sys1'),
       msg('system', 'sys2'),
       msg('user', 'u1'),
+      msg('system', 'sys3'),
       msg('assistant', 'a1'),
-      msg('user', 'u2'),
     ];
-    // Tail scan: u2=5000, a1=5000 → 10000 >= 10000, stop
-    const llm = createMockLlmClient([5000, 5000]);
 
-    const result = await partitionMessages(messages, 10000, llm);
+    const result = partitionMessages(messages);
     expect(result.head).toHaveLength(2);
-    expect(result.head[0].role).toBe('system');
-    expect(result.head[1].role).toBe('system');
-    expect(result.middle.every(m => m.role !== 'system')).toBe(true);
-    expect(result.tail.every(m => m.role !== 'system')).toBe(true);
-  });
-
-  // BDD Scenario: Head + Tail 覆盖所有消息，Middle 为空
-  it('should have empty middle when tail budget covers all non-system messages', async () => {
-    const messages = [
-      msg('system', 'sys'),
-      msg('user', 'u1'),
-      msg('assistant', 'a1'),
-      msg('user', 'u2'),
-    ];
-    // Tail scan: u2=1000, a1=1000, u1=1000 → 3000, all consumed before budget 100000
-    const llm = createMockLlmClient([1000, 1000, 1000]);
-
-    const result = await partitionMessages(messages, 100000, llm);
-    expect(result.head).toHaveLength(1);
-    expect(result.head[0].role).toBe('system');
-    expect(result.tail).toHaveLength(3);
-    expect(result.middle).toHaveLength(0);
-  });
-
-  // BDD Scenario: Tail 扫描不截断消息
-  it('should not truncate messages when tail scan exceeds budget', async () => {
-    const messages = [
-      msg('system', 'sys'),
-      msg('user', 'u1'),
-      msg('assistant', 'a1'),
-      msg('user', 'u2'),
-      msg('assistant', 'a2'),
-    ];
-    // Tail scan: a2=8000 (<10000, continue), u2=5000 (8000+5000=13000>=10000, stop)
-    // Both messages included in tail despite total exceeding budget
-    const llm = createMockLlmClient([8000, 5000]);
-
-    const result = await partitionMessages(messages, 10000, llm);
-    expect(result.tail).toHaveLength(2);
-    expect(result.tail[0].content).toBe('u2');
-    expect(result.tail[1].content).toBe('a2');
-  });
-
-  // BDD Scenario: 只有一条消息时归入 Tail
-  it('should put single message in tail with empty head and middle', async () => {
-    const messages = [msg('user', 'only message')];
-    const llm = createMockLlmClient([500]);
-
-    const result = await partitionMessages(messages, 100, llm);
-    expect(result.head).toHaveLength(0);
-    expect(result.middle).toHaveLength(0);
-    expect(result.tail).toHaveLength(1);
-    expect(result.tail[0].content).toBe('only message');
+    expect(result.rest).toHaveLength(3);
+    expect(result.rest[0].content).toBe('u1');
+    expect(result.rest[1].role).toBe('system');
+    expect(result.rest[2].role).toBe('assistant');
   });
 });
 
+// ---------------------------------------------------------------------------
+// Tests: assembleMessages (v2 — head + summary pair + restored files)
+// ---------------------------------------------------------------------------
+
 describe('assembleMessages', () => {
-  // BDD Scenario: 正常组装：Head + 摘要 + Tail
-  it('should assemble head(1) + summary + tail(5) into 7 messages in order', () => {
+  // BDD: 完整组装：Head + Summary + Restored files
+  it('should assemble head + summary pair + restored file pairs', () => {
     const head = [msg('system', 'sys')];
-    const tail = [
-      msg('user', 't1'), msg('assistant', 't2'),
-      msg('user', 't3'), msg('assistant', 't4'),
-      msg('user', 't5'),
+    const restoredFiles: Message[] = [
+      msg('user', '[Restored after compact] a.ts:\ncontent a'),
+      msg('user', '[Restored after compact] b.ts:\ncontent b'),
     ];
-    const result = assembleMessages(head, 'Summary text', tail);
+
+    const result = assembleMessages(head, 'Summary text', restoredFiles);
 
     expect(result).toHaveLength(7);
+    // 1. system
     expect(result[0].role).toBe('system');
+    // 2. summary user
     expect(result[1].role).toBe('user');
-    expect(result[1].content).toBe('Summary text');
-    expect(result[2].content).toBe('t1');
-    expect(result[6].content).toBe('t5');
+    expect(result[1].content).toContain('[Conversation compressed]');
+    expect(result[1].content).toContain('Summary text');
+    // 3. summary assistant ack
+    expect(result[2].role).toBe('assistant');
+    expect(result[2].content).toBe('Understood. I have the context from the compressed conversation. Continuing work.');
+    // 4. restored file 1
+    expect(result[3].role).toBe('user');
+    expect((result[3].content as string)).toContain('[Restored after compact]');
+    // 5. restored file 1 ack
+    expect(result[4].role).toBe('assistant');
+    expect(result[4].content).toBe('Noted, file content restored.');
+    // 6. restored file 2
+    expect(result[5].role).toBe('user');
+    // 7. restored file 2 ack
+    expect(result[6].role).toBe('assistant');
+    expect(result[6].content).toBe('Noted, file content restored.');
   });
 
-  // BDD Scenario: Head 为空时摘要消息为第一条
-  it('should put summary first when head is empty', () => {
-    const tail = [msg('user', 't1'), msg('assistant', 't2'), msg('user', 't3')];
-    const result = assembleMessages([], 'Summary text', tail);
+  // BDD: 无文件恢复：仅 Head + Summary pair
+  it('should assemble head + summary pair when no restored files', () => {
+    const head = [msg('system', 'sys')];
+    const result = assembleMessages(head, 'Summary text', []);
+
+    expect(result).toHaveLength(3);
+    expect(result[0].role).toBe('system');
+    expect(result[1].role).toBe('user');
+    expect(result[1].content).toContain('Summary text');
+    expect(result[2].role).toBe('assistant');
+  });
+
+  // BDD: 无 Head：Summary pair 为首条消息
+  it('should put summary pair first when head is empty', () => {
+    const restoredFiles: Message[] = [
+      msg('user', '[Restored after compact] a.ts:\ncontent a'),
+    ];
+    const result = assembleMessages([], 'Summary text', restoredFiles);
 
     expect(result).toHaveLength(4);
     expect(result[0].role).toBe('user');
-    expect(result[0].content).toBe('Summary text');
-    expect(result[1].content).toBe('t1');
-    expect(result[3].content).toBe('t3');
+    expect(result[0].content).toContain('[Conversation compressed]');
+    expect(result[1].role).toBe('assistant');
+    expect(result[2].role).toBe('user');
+    expect(result[3].role).toBe('assistant');
   });
 
-  // BDD Scenario: 不可变性：输入数组不被修改
+  // BDD: 轮次顺序验证：user/assistant 严格交替
+  it('should maintain strict user/assistant alternation after head', () => {
+    const head = [msg('system', 'sys1'), msg('system', 'sys2')];
+    const restoredFiles: Message[] = [
+      msg('user', '[Restored after compact] a.ts:\ncontent a'),
+      msg('user', '[Restored after compact] b.ts:\ncontent b'),
+      msg('user', '[Restored after compact] c.ts:\ncontent c'),
+    ];
+
+    const result = assembleMessages(head, 'Summary', restoredFiles);
+
+    // Check alternation after system messages
+    const nonSystem = result.filter(m => m.role !== 'system');
+    for (let i = 0; i < nonSystem.length; i++) {
+      expect(nonSystem[i].role).toBe(i % 2 === 0 ? 'user' : 'assistant');
+    }
+  });
+
+  // BDD: 不可变性：不修改输入参数
   it('should not mutate input arrays', () => {
     const head = [msg('system', 'sys')];
-    const tail = [msg('user', 'a'), msg('assistant', 'b'), msg('user', 'c')];
+    const restoredFiles: Message[] = [msg('user', 'file content')];
     const headSnapshot = [...head];
-    const tailSnapshot = [...tail];
+    const filesSnapshot = [...restoredFiles];
 
-    const result = assembleMessages(head, 'Summary', tail);
+    const result = assembleMessages(head, 'Summary', restoredFiles);
 
     expect(result).not.toBe(head);
-    expect(result).not.toBe(tail);
+    expect(result).not.toBe(restoredFiles);
     expect(head).toHaveLength(headSnapshot.length);
-    expect(tail).toHaveLength(tailSnapshot.length);
+    expect(restoredFiles).toHaveLength(filesSnapshot.length);
     expect(head[0].content).toBe(headSnapshot[0].content);
-    expect(tail[0].content).toBe(tailSnapshot[0].content);
-  });
-
-  // BDD Scenario: 摘要消息格式正确
-  it('should create summary message with role user and exact content', () => {
-    const summaryText = '这是会话摘要内容';
-    const result = assembleMessages([], summaryText, [msg('user', 'last')]);
-
-    const summaryMsg = result[0];
-    expect(summaryMsg.role).toBe('user');
-    expect(summaryMsg.content).toBe(summaryText);
+    expect(restoredFiles[0].content).toBe(filesSnapshot[0].content);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tests: restoreRecentFiles
+// ---------------------------------------------------------------------------
+
+describe('restoreRecentFiles', () => {
+  const workDir = '/project';
+
+  // BDD: 正常恢复：扫描 read_file 调用并恢复文件内容
+  it('should restore files in most-recent-first order', async () => {
+    const messages: Message[] = [
+      readFileMsg('/project/a.ts'),
+      readFileMsg('/project/b.ts'),
+      readFileMsg('/project/c.ts'),
+    ];
+    const fileReader = createMockFileReader({
+      '/project/a.ts': 'content a',
+      '/project/b.ts': 'content b',
+      '/project/c.ts': 'content c',
+    });
+
+    const result = await restoreRecentFiles(messages, {
+      maxRestoreFiles: 5,
+      maxRestoreTokensPerFile: 5000,
+      maxRestoreTokensTotal: 50000,
+      workDir,
+      fileReader,
+      logger: createMockLogger(),
+    });
+
+    expect(result.messages).toHaveLength(3);
+    // Most recent first: c, b, a
+    expect((result.messages[0].content as string)).toContain('c.ts');
+    expect((result.messages[1].content as string)).toContain('b.ts');
+    expect((result.messages[2].content as string)).toContain('a.ts');
+    expect(result.messages[0].role).toBe('user');
+    expect((result.messages[0].content as string)).toContain('[Restored after compact]');
+  });
+
+  // BDD: 无 read_file 调用：返回空数组
+  it('should return empty array when no read_file calls', async () => {
+    const messages: Message[] = [
+      msg('user', 'hello'),
+      msg('assistant', 'hi'),
+    ];
+
+    const result = await restoreRecentFiles(messages, {
+      maxRestoreFiles: 5,
+      maxRestoreTokensPerFile: 5000,
+      maxRestoreTokensTotal: 50000,
+      workDir,
+      fileReader: createMockFileReader({}),
+      logger: createMockLogger(),
+    });
+
+    expect(result.messages).toHaveLength(0);
+    expect(result.totalTokens).toBe(0);
+  });
+
+  // BDD: 文件不存在：跳过并继续
+  it('should skip non-existent files and continue', async () => {
+    const messages: Message[] = [
+      readFileMsg('/project/a.ts'),
+      readFileMsg('/project/b.ts'),
+      readFileMsg('/project/c.ts'),
+    ];
+    const fileReader = createMockFileReader({
+      '/project/a.ts': 'content a',
+      '/project/c.ts': 'content c',
+      // b.ts missing
+    });
+    const logger = createMockLogger();
+
+    const result = await restoreRecentFiles(messages, {
+      maxRestoreFiles: 5,
+      maxRestoreTokensPerFile: 5000,
+      maxRestoreTokensTotal: 50000,
+      workDir,
+      fileReader,
+      logger,
+    });
+
+    // c.ts and a.ts restored (most recent first, b.ts skipped)
+    expect(result.messages).toHaveLength(2);
+    expect((result.messages[0].content as string)).toContain('c.ts');
+    expect((result.messages[1].content as string)).toContain('a.ts');
+    expect(logger.warn).toHaveBeenCalledWith(
+      'File not found, skipping restoration',
+      expect.objectContaining({ filePath: '/project/b.ts' }),
+    );
+  });
+
+  // BDD: 路径穿越：跳过 workDir 之外的文件
+  it('should skip files outside workDir (path traversal)', async () => {
+    const messages: Message[] = [
+      readFileMsg('../../etc/passwd'),
+    ];
+    const fileReader = createMockFileReader({});
+    const logger = createMockLogger();
+
+    const result = await restoreRecentFiles(messages, {
+      maxRestoreFiles: 5,
+      maxRestoreTokensPerFile: 5000,
+      maxRestoreTokensTotal: 50000,
+      workDir,
+      fileReader,
+      logger,
+    });
+
+    expect(result.messages).toHaveLength(0);
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Path traversal detected, skipping file',
+      expect.objectContaining({ filePath: '../../etc/passwd' }),
+    );
+  });
+
+  // BDD: 单文件超 token 限制：跳过该文件
+  it('should skip files exceeding per-file token limit', async () => {
+    const messages: Message[] = [
+      readFileMsg('/project/small.ts'),
+      readFileMsg('/project/large.ts'),
+    ];
+    // large.ts: 24000 chars ÷ 4 chars/token = 6000 tokens > 5000 limit
+    // small.ts: 400 chars ÷ 4 = 100 tokens
+    const fileReader = createMockFileReader({
+      '/project/small.ts': 'x'.repeat(400),
+      '/project/large.ts': 'x'.repeat(24000),
+    });
+
+    const result = await restoreRecentFiles(messages, {
+      maxRestoreFiles: 5,
+      maxRestoreTokensPerFile: 5000,
+      maxRestoreTokensTotal: 50000,
+      workDir,
+      fileReader,
+      logger: createMockLogger(),
+    });
+
+    // Only small.ts restored (large.ts most recent but exceeds limit)
+    expect(result.messages).toHaveLength(1);
+    expect((result.messages[0].content as string)).toContain('small.ts');
+  });
+
+  // BDD: 总 token 超限：达到上限后停止
+  it('should stop when total token limit is reached', async () => {
+    const messages: Message[] = [
+      readFileMsg('/project/a.ts'),
+      readFileMsg('/project/b.ts'),
+      readFileMsg('/project/c.ts'),
+      readFileMsg('/project/d.ts'),
+      readFileMsg('/project/e.ts'),
+    ];
+    // Each file ~4000 tokens (16000 chars ÷ 4)
+    const fileReader = createMockFileReader({
+      '/project/a.ts': 'x'.repeat(16000),
+      '/project/b.ts': 'x'.repeat(16000),
+      '/project/c.ts': 'x'.repeat(16000),
+      '/project/d.ts': 'x'.repeat(16000),
+      '/project/e.ts': 'x'.repeat(16000),
+    });
+
+    const result = await restoreRecentFiles(messages, {
+      maxRestoreFiles: 5,
+      maxRestoreTokensPerFile: 5000,
+      maxRestoreTokensTotal: 10000,
+      workDir,
+      fileReader,
+      logger: createMockLogger(),
+    });
+
+    // First 2 files fit (8000), 3rd would exceed 10000, stop
+    expect(result.messages).toHaveLength(2);
+  });
+
+  // BDD: maxRestoreFiles 限制：只恢复指定数量
+  it('should only restore up to maxRestoreFiles', async () => {
+    const messages: Message[] = [];
+    for (let i = 0; i < 10; i++) {
+      messages.push(readFileMsg(`/project/file${i}.ts`));
+    }
+    const files: Record<string, string> = {};
+    for (let i = 0; i < 10; i++) {
+      files[`/project/file${i}.ts`] = `content ${i}`;
+    }
+
+    const result = await restoreRecentFiles(messages, {
+      maxRestoreFiles: 3,
+      maxRestoreTokensPerFile: 5000,
+      maxRestoreTokensTotal: 50000,
+      workDir,
+      fileReader: createMockFileReader(files),
+      logger: createMockLogger(),
+    });
+
+    expect(result.messages).toHaveLength(3);
+    // Most recent 3: file9, file8, file7
+    expect((result.messages[0].content as string)).toContain('file9.ts');
+    expect((result.messages[1].content as string)).toContain('file8.ts');
+    expect((result.messages[2].content as string)).toContain('file7.ts');
+  });
+
+  // BDD: 同一文件多次读取：只恢复一次
+  it('should deduplicate files, using last access order', async () => {
+    const messages: Message[] = [
+      readFileMsg('/project/a.ts'),  // order 0
+      readFileMsg('/project/b.ts'),  // order 1
+      readFileMsg('/project/a.ts'),  // order 2 (overwrites 0)
+      readFileMsg('/project/c.ts'),  // order 3
+    ];
+    const fileReader = createMockFileReader({
+      '/project/a.ts': 'content a',
+      '/project/b.ts': 'content b',
+      '/project/c.ts': 'content c',
+    });
+
+    const result = await restoreRecentFiles(messages, {
+      maxRestoreFiles: 5,
+      maxRestoreTokensPerFile: 5000,
+      maxRestoreTokensTotal: 50000,
+      workDir,
+      fileReader,
+      logger: createMockLogger(),
+    });
+
+    expect(result.messages).toHaveLength(3);
+    // Order: c(3), a(2), b(1)
+    expect((result.messages[0].content as string)).toContain('c.ts');
+    expect((result.messages[1].content as string)).toContain('a.ts');
+    expect((result.messages[2].content as string)).toContain('b.ts');
+  });
+
+  // BDD: 文件读取失败（OS 错误）：跳过并继续
+  it('should skip files that fail to read and continue', async () => {
+    const messages: Message[] = [
+      readFileMsg('/project/a.ts'),
+      readFileMsg('/project/b.ts'),
+    ];
+    // a.ts exists but throws on read
+    const fileReader: FileReader = {
+      read: vi.fn(async (path: string) => {
+        if (path === '/project/a.ts') throw new Error('EACCES: permission denied');
+        return 'content b';
+      }),
+      exists: vi.fn(async () => true),
+    };
+    const logger = createMockLogger();
+
+    const result = await restoreRecentFiles(messages, {
+      maxRestoreFiles: 5,
+      maxRestoreTokensPerFile: 5000,
+      maxRestoreTokensTotal: 50000,
+      workDir,
+      fileReader,
+      logger,
+    });
+
+    // Only b.ts (most recent is b, a fails on read)
+    // Actually order: b(1) > a(0), so b is tried first, then a
+    // b succeeds, a fails
+    expect(result.messages).toHaveLength(1);
+    expect((result.messages[0].content as string)).toContain('b.ts');
+    expect(logger.warn).toHaveBeenCalledWith(
+      'Failed to read file, skipping restoration',
+      expect.objectContaining({ error: expect.stringContaining('EACCES') }),
+    );
+  });
+
+  // BDD: maxRestoreFiles 为 0：不恢复任何文件
+  it('should return empty when maxRestoreFiles is 0', async () => {
+    const messages: Message[] = [
+      readFileMsg('/project/a.ts'),
+    ];
+
+    const result = await restoreRecentFiles(messages, {
+      maxRestoreFiles: 0,
+      maxRestoreTokensPerFile: 5000,
+      maxRestoreTokensTotal: 50000,
+      workDir,
+      fileReader: createMockFileReader({ '/project/a.ts': 'content' }),
+      logger: createMockLogger(),
+    });
+
+    expect(result.messages).toHaveLength(0);
+    expect(result.totalTokens).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests: compactMessages
+// ---------------------------------------------------------------------------
 
 describe('compactMessages', () => {
   beforeEach(() => {
@@ -296,7 +619,6 @@ describe('compactMessages', () => {
 
   it('should return original messages when below threshold', async () => {
     const messages = [msg('user', 'hello')];
-    // countTokens returns 100, well below threshold
     const llm = createMockLlmClient([100]);
     const fw = createMockFileWriter();
 
@@ -321,12 +643,11 @@ describe('compactMessages', () => {
       msg('assistant', 'reply'),
     ];
 
-    // Call sequence for countTokens:
+    // Call sequence:
     // 1. Total count: 190000 (above threshold)
-    // 2-5. Individual message counts for partition: 1000, 50000, 50000, 50000, 40000
-    // 6. Compacted total: 50000
+    // 2. Compacted total: 50000
     const llm = createMockLlmClient(
-      [190000, 40000, 50000, 50000, 50000, 1000, 50000],
+      [190000, 50000],
       'Compacted summary text',
     );
     const fw = createMockFileWriter();
@@ -338,24 +659,25 @@ describe('compactMessages', () => {
       logger,
       contextTokenLimit: 200000,
       compactThresholdRatio: 0.92,
-      tailRetentionRatio: 0.15,
       sessionId: 'test-session',
+      maxRestoreFiles: 0, // disable file restore for this test
     });
 
     expect(result.compacted).toBe(true);
     expect(result.stats).not.toBeNull();
     expect(result.messages[0].role).toBe('system');
+    expect(result.messages[1].role).toBe('user');
+    expect((result.messages[1].content as string)).toContain('[Conversation compressed]');
+    expect(result.messages[2].role).toBe('assistant');
     expect(fw.write).toHaveBeenCalled();
   });
 
-  it('should skip compaction when middle is empty', async () => {
+  it('should skip compaction when rest is empty (only system messages)', async () => {
     const messages = [
       msg('system', 'sys'),
-      msg('user', 'hello'),
     ];
 
-    // Total: 190000 (above threshold), but individual messages fill entire tail
-    const llm = createMockLlmClient([190000, 190000]);
+    const llm = createMockLlmClient([190000]);
     const fw = createMockFileWriter();
     const logger = createMockLogger();
 
@@ -365,22 +687,21 @@ describe('compactMessages', () => {
       logger,
       contextTokenLimit: 200000,
       compactThresholdRatio: 0.92,
-      tailRetentionRatio: 0.99,
     });
 
     expect(result.compacted).toBe(false);
   });
 
-  // BDD Scenario: F-006 正常持久化原始消息
-  it('should persist middle messages as indented JSON with correct path format', async () => {
+  // BDD F-006: 正常持久化原始消息
+  it('should persist rest messages as indented JSON with correct path format', async () => {
     const messages = [
       msg('system', 'sys'),
       msg('user', 'u1'),
       msg('user', 'u2'),
       msg('assistant', 'reply'),
     ];
-    // Call sequence: total=190000, tail scan: reply=30000 (>=30000 stop), compacted=50000
-    const llm = createMockLlmClient([190000, 30000, 50000], 'Summary');
+    // Call sequence: total=190000, compacted=50000
+    const llm = createMockLlmClient([190000, 50000], 'Summary');
     const fw = createMockFileWriter();
     const logger = createMockLogger();
 
@@ -390,9 +711,9 @@ describe('compactMessages', () => {
       logger,
       contextTokenLimit: 200000,
       compactThresholdRatio: 0.92,
-      tailRetentionRatio: 0.15,
       outputDir: '.compact',
       sessionId: 'session-abc123',
+      maxRestoreFiles: 0,
     });
 
     expect(fw.write).toHaveBeenCalledTimes(1);
@@ -401,16 +722,15 @@ describe('compactMessages', () => {
     // Path format: .compact/session-abc123/compact-<timestamp>-1.json
     expect(filePath).toMatch(/^\.compact\/session-abc123\/compact-.+-1\.json$/);
 
-    // Content is indented JSON of middle messages [u1, u2]
+    // Content is indented JSON of rest messages [u1, u2, reply]
     const parsed = JSON.parse(content);
-    expect(parsed).toHaveLength(2);
+    expect(parsed).toHaveLength(3);
     expect(content).toContain('  ');
 
-    // Result returns the file path
     expect(result.originalMessagesPath).toBe(filePath);
   });
 
-  // BDD Scenario: F-006 多次压缩生成递增序号的文件
+  // BDD F-006: 多次压缩生成递增序号的文件
   it('should increment sequence number on multiple compactions', async () => {
     const makeMessages = () => [
       msg('system', 'sys'),
@@ -419,22 +739,20 @@ describe('compactMessages', () => {
       msg('assistant', 'reply'),
     ];
 
-    // First compaction
-    const llm1 = createMockLlmClient([190000, 30000, 50000], 'Summary1');
+    const llm1 = createMockLlmClient([190000, 50000], 'Summary1');
     const fw1 = createMockFileWriter();
     await compactMessages(makeMessages(), {
       llmClient: llm1, fileWriter: fw1, logger: createMockLogger(),
       contextTokenLimit: 200000, compactThresholdRatio: 0.92,
-      tailRetentionRatio: 0.15, sessionId: 'test',
+      sessionId: 'test', maxRestoreFiles: 0,
     });
 
-    // Second compaction (counter persists within same beforeEach scope)
-    const llm2 = createMockLlmClient([190000, 30000, 50000], 'Summary2');
+    const llm2 = createMockLlmClient([190000, 50000], 'Summary2');
     const fw2 = createMockFileWriter();
     await compactMessages(makeMessages(), {
       llmClient: llm2, fileWriter: fw2, logger: createMockLogger(),
       contextTokenLimit: 200000, compactThresholdRatio: 0.92,
-      tailRetentionRatio: 0.15, sessionId: 'test',
+      sessionId: 'test', maxRestoreFiles: 0,
     });
 
     const path1 = (fw1.write as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
@@ -444,7 +762,7 @@ describe('compactMessages', () => {
     expect(path2).toMatch(/-2\.json$/);
   });
 
-  // BDD Scenario: F-006 文件写入失败不阻塞压缩流程
+  // BDD F-006: 文件写入失败不阻塞压缩流程
   it('should continue compaction when file write fails', async () => {
     const messages = [
       msg('system', 'sys'),
@@ -452,7 +770,7 @@ describe('compactMessages', () => {
       msg('user', 'u2'),
       msg('assistant', 'reply'),
     ];
-    const llm = createMockLlmClient([190000, 30000, 50000], 'Summary');
+    const llm = createMockLlmClient([190000, 50000], 'Summary');
     const fw: FileWriter = {
       write: vi.fn(async () => { throw new Error('Permission denied'); }),
     };
@@ -461,7 +779,7 @@ describe('compactMessages', () => {
     const result = await compactMessages(messages, {
       llmClient: llm, fileWriter: fw, logger,
       contextTokenLimit: 200000, compactThresholdRatio: 0.92,
-      tailRetentionRatio: 0.15,
+      maxRestoreFiles: 0,
     });
 
     expect(result.compacted).toBe(true);
@@ -472,7 +790,7 @@ describe('compactMessages', () => {
     );
   });
 
-  // BDD Scenario: F-007 首次调用成功无需重试
+  // BDD F-007: 首次调用成功无需重试
   it('should compact successfully on first LLM call without retries', async () => {
     const messages = [
       msg('system', 'sys'),
@@ -482,9 +800,8 @@ describe('compactMessages', () => {
     ];
     const llm: LlmClient = {
       countTokens: vi.fn()
-        .mockResolvedValueOnce(190000)  // total
-        .mockResolvedValueOnce(30000)   // tail scan
-        .mockResolvedValueOnce(50000),  // compacted total
+        .mockResolvedValueOnce(190000)
+        .mockResolvedValueOnce(50000),
       summarize: vi.fn().mockResolvedValueOnce('First try summary'),
     };
     const fw = createMockFileWriter();
@@ -493,7 +810,7 @@ describe('compactMessages', () => {
     const result = await compactMessages(messages, {
       llmClient: llm, fileWriter: fw, logger,
       contextTokenLimit: 200000, compactThresholdRatio: 0.92,
-      tailRetentionRatio: 0.15, maxRetries: 2,
+      maxRetries: 2, maxRestoreFiles: 0,
     });
 
     expect(result.compacted).toBe(true);
@@ -501,7 +818,7 @@ describe('compactMessages', () => {
     expect(logger.warn).not.toHaveBeenCalled();
   });
 
-  // BDD Scenario: F-007 首次失败后重试成功
+  // BDD F-007: 首次失败后重试成功
   it('should retry and succeed on second LLM call', async () => {
     try {
       vi.useFakeTimers();
@@ -515,7 +832,6 @@ describe('compactMessages', () => {
       const llm: LlmClient = {
         countTokens: vi.fn()
           .mockResolvedValueOnce(190000)
-          .mockResolvedValueOnce(30000)
           .mockResolvedValueOnce(50000),
         summarize: vi.fn()
           .mockRejectedValueOnce(new Error('Network error'))
@@ -527,7 +843,7 @@ describe('compactMessages', () => {
       const promise = compactMessages(messages, {
         llmClient: llm, fileWriter: fw, logger,
         contextTokenLimit: 200000, compactThresholdRatio: 0.92,
-        tailRetentionRatio: 0.15, maxRetries: 2,
+        maxRetries: 2, maxRestoreFiles: 0,
       });
 
       await vi.advanceTimersByTimeAsync(2000);
@@ -544,7 +860,7 @@ describe('compactMessages', () => {
     }
   });
 
-  // BDD Scenario: F-007 全部重试失败后跳过压缩
+  // BDD F-007: 全部重试失败后跳过压缩
   it('should skip compaction after all retry attempts fail', async () => {
     try {
       vi.useFakeTimers();
@@ -557,8 +873,7 @@ describe('compactMessages', () => {
       ];
       const llm: LlmClient = {
         countTokens: vi.fn()
-          .mockResolvedValueOnce(190000)
-          .mockResolvedValueOnce(30000),
+          .mockResolvedValueOnce(190000),
         summarize: vi.fn()
           .mockRejectedValueOnce(new Error('fail 1'))
           .mockRejectedValueOnce(new Error('fail 2'))
@@ -570,7 +885,7 @@ describe('compactMessages', () => {
       const promise = compactMessages(messages, {
         llmClient: llm, fileWriter: fw, logger,
         contextTokenLimit: 200000, compactThresholdRatio: 0.92,
-        tailRetentionRatio: 0.15, maxRetries: 2,
+        maxRetries: 2, maxRestoreFiles: 0,
       });
 
       await vi.advanceTimersByTimeAsync(5000);
@@ -589,7 +904,7 @@ describe('compactMessages', () => {
     }
   });
 
-  // BDD Scenario: F-007 COMPACT_MAX_RETRIES 为 0 时不重试
+  // BDD F-007: COMPACT_MAX_RETRIES 为 0 时不重试
   it('should not retry when maxRetries is 0', async () => {
     const messages = [
       msg('system', 'sys'),
@@ -599,8 +914,7 @@ describe('compactMessages', () => {
     ];
     const llm: LlmClient = {
       countTokens: vi.fn()
-        .mockResolvedValueOnce(190000)
-        .mockResolvedValueOnce(30000),
+        .mockResolvedValueOnce(190000),
       summarize: vi.fn().mockRejectedValueOnce(new Error('LLM unavailable')),
     };
     const fw = createMockFileWriter();
@@ -609,34 +923,24 @@ describe('compactMessages', () => {
     const result = await compactMessages(messages, {
       llmClient: llm, fileWriter: fw, logger,
       contextTokenLimit: 200000, compactThresholdRatio: 0.92,
-      tailRetentionRatio: 0.15, maxRetries: 0,
+      maxRetries: 0, maxRestoreFiles: 0,
     });
 
     expect(result.compacted).toBe(false);
     expect(llm.summarize).toHaveBeenCalledTimes(1);
   });
 
-  // BDD Scenario: F-008 压缩成功后返回完整统计信息
+  // BDD F-008/F-009: 压缩成功后返回完整统计信息
   it('should return correct stats after successful compaction', async () => {
-    // Build 30 messages: 1 system + 29 user/assistant
     const messages: Message[] = [msg('system', 'sys prompt')];
     for (let i = 0; i < 29; i++) {
       messages.push(msg(i % 2 === 0 ? 'user' : 'assistant', `msg-${i + 1}`));
     }
 
-    // Call sequence:
-    // 1. Total: 190000 (above threshold 184000)
-    // 2-6. Tail scan from end: 5 messages × 6000 = 30000 (>= 30000 budget, stop)
-    // 7. Compacted total: 60000
     const llm: LlmClient = {
       countTokens: vi.fn()
-        .mockResolvedValueOnce(190000)
-        .mockResolvedValueOnce(6000)
-        .mockResolvedValueOnce(6000)
-        .mockResolvedValueOnce(6000)
-        .mockResolvedValueOnce(6000)
-        .mockResolvedValueOnce(6000)
-        .mockResolvedValueOnce(60000),
+        .mockResolvedValueOnce(190000)  // total
+        .mockResolvedValueOnce(60000),  // compacted
       summarize: vi.fn().mockResolvedValueOnce('Compacted summary'),
     };
     const fw = createMockFileWriter();
@@ -645,7 +949,7 @@ describe('compactMessages', () => {
     const result = await compactMessages(messages, {
       llmClient: llm, fileWriter: fw, logger,
       contextTokenLimit: 200000, compactThresholdRatio: 0.92,
-      tailRetentionRatio: 0.15,
+      maxRestoreFiles: 0,
     });
 
     expect(result.compacted).toBe(true);
@@ -654,14 +958,51 @@ describe('compactMessages', () => {
     expect(stats.originalTokenCount).toBe(190000);
     expect(stats.compactedTokenCount).toBe(60000);
     expect(stats.compactionRatio).toBeCloseTo(60000 / 190000, 5);
-    expect(stats.compactedMessageCount).toBe(24);
-    expect(stats.retainedMessageCount).toBe(6); // 1 head + 5 tail
+    expect(stats.compactedMessageCount).toBe(29); // all non-system
+    expect(stats.retainedMessageCount).toBe(1); // just head
+    expect(stats.restoredFileCount).toBe(0);
+    expect(stats.restoredTokenCount).toBe(0);
   });
 
-  // BDD Scenario: F-008 未执行压缩时统计信息为空
+  // BDD: 统计信息包含恢复文件数和 token 数
+  it('should include restoredFileCount and restoredTokenCount in stats', async () => {
+    const messages: Message[] = [
+      msg('system', 'sys'),
+      msg('user', 'analyze file'),
+      readFileMsg('/project/src/app.ts'),
+      msg('user', 'continue'),
+      readFileMsg('/project/src/index.ts'),
+      msg('assistant', 'done'),
+    ];
+
+    const llm: LlmClient = {
+      countTokens: vi.fn()
+        .mockResolvedValueOnce(190000) // total
+        .mockResolvedValueOnce(50000), // compacted
+      summarize: vi.fn().mockResolvedValueOnce('Summary'),
+    };
+    const fw = createMockFileWriter();
+    const fileReader = createMockFileReader({
+      '/project/src/app.ts': 'x'.repeat(400),   // 100 tokens
+      '/project/src/index.ts': 'x'.repeat(800), // 200 tokens
+    });
+
+    const result = await compactMessages(messages, {
+      llmClient: llm, fileWriter: fw, logger: createMockLogger(),
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+      fileReader,
+      workDir: '/project',
+    });
+
+    expect(result.compacted).toBe(true);
+    expect(result.stats!.restoredFileCount).toBe(2);
+    expect(result.stats!.restoredTokenCount).toBeGreaterThan(0);
+  });
+
+  // BDD: 未执行压缩时统计信息为空
   it('should return null stats when compaction is not triggered', async () => {
     const messages = [msg('user', 'hello')];
-    const llm = createMockLlmClient([100000]); // below threshold 184000
+    const llm = createMockLlmClient([100000]);
     const fw = createMockFileWriter();
 
     const result = await compactMessages(messages, {
@@ -683,27 +1024,68 @@ describe('compactMessages integration', () => {
     resetCompactionCounter();
   });
 
-  // BDD Scenario: 端到端正常压缩流程
-  it('should execute full pipeline: detect → partition → persist → summarize → assemble', async () => {
-    // 1 system + 25 user/assistant messages = 26 total
+  // BDD: 端到端全量压缩流程：带文件恢复
+  it('should execute full pipeline with file restoration', async () => {
+    const messages: Message[] = [
+      msg('system', 'You are a helpful assistant'),
+      msg('user', 'read file'),
+      readFileMsg('/project/src/app.ts'),
+      msg('user', 'analyze'),
+      readFileMsg('/project/src/index.ts'),
+      msg('assistant', 'analysis complete'),
+    ];
+
+    const llm: LlmClient = {
+      countTokens: vi.fn()
+        .mockResolvedValueOnce(190000)  // total
+        .mockResolvedValueOnce(55000),  // compacted
+      summarize: vi.fn().mockResolvedValueOnce('## Summary\nGoals: analyze files'),
+    };
+    const fw = createMockFileWriter();
+    const fileReader = createMockFileReader({
+      '/project/src/app.ts': 'const app = express();',
+      '/project/src/index.ts': 'import { app } from "./app";',
+    });
+    const logger = createMockLogger();
+
+    const result = await compactMessages(messages, {
+      llmClient: llm, fileWriter: fw, logger,
+      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+      sessionId: 'integ-session',
+      fileReader,
+      workDir: '/project',
+    });
+
+    expect(result.compacted).toBe(true);
+
+    // Structure: [system, summary(user), ack(assistant), restored1(user), ack(assistant), restored2(user), ack(assistant)]
+    expect(result.messages).toHaveLength(7);
+    expect(result.messages[0].role).toBe('system');
+    expect(result.messages[1].role).toBe('user');
+    expect((result.messages[1].content as string)).toContain('[Conversation compressed]');
+    expect(result.messages[2].role).toBe('assistant');
+    expect(result.messages[3].role).toBe('user');
+    expect((result.messages[3].content as string)).toContain('[Restored after compact]');
+    expect(result.messages[4].role).toBe('assistant');
+    expect(result.messages[4].content).toBe('Noted, file content restored.');
+
+    // Stats
+    expect(result.stats!.restoredFileCount).toBe(2);
+    expect(result.stats!.restoredTokenCount).toBeGreaterThan(0);
+    expect(result.originalMessagesPath).not.toBeNull();
+  });
+
+  // BDD: 端到端全量压缩：无文件恢复
+  it('should execute full pipeline without file restoration when no read_file calls', async () => {
     const messages: Message[] = [msg('system', 'You are a helpful assistant')];
     for (let i = 0; i < 25; i++) {
       messages.push(msg(i % 2 === 0 ? 'user' : 'assistant', `conv-${i + 1}`));
     }
 
-    // Token sequence:
-    // 1. Total: 190000 (above 184000 threshold)
-    // 2-6. Tail scan: 5 msgs × 6000 = 30000 (>= 30000 budget), stop
-    // 7. Compacted total: 55000
     const llm: LlmClient = {
       countTokens: vi.fn()
-        .mockResolvedValueOnce(190000)
-        .mockResolvedValueOnce(6000)
-        .mockResolvedValueOnce(6000)
-        .mockResolvedValueOnce(6000)
-        .mockResolvedValueOnce(6000)
-        .mockResolvedValueOnce(6000)
-        .mockResolvedValueOnce(55000),
+        .mockResolvedValueOnce(190000)  // total
+        .mockResolvedValueOnce(55000),  // compacted
       summarize: vi.fn().mockResolvedValueOnce('## Summary\nGoals: fix bug\nFiles: /src/app.ts'),
     };
     const fw = createMockFileWriter();
@@ -712,35 +1094,26 @@ describe('compactMessages integration', () => {
     const result = await compactMessages(messages, {
       llmClient: llm, fileWriter: fw, logger,
       contextTokenLimit: 200000, compactThresholdRatio: 0.92,
-      tailRetentionRatio: 0.15, sessionId: 'integ-session',
+      sessionId: 'integ-session',
+      maxRestoreFiles: 0,
     });
 
-    // Compaction succeeded
     expect(result.compacted).toBe(true);
 
-    // Message structure: [system, summary(user), tail×5] = 7
-    expect(result.messages).toHaveLength(7);
+    // Structure: [system, summary(user), ack(assistant)]
+    expect(result.messages).toHaveLength(3);
     expect(result.messages[0].role).toBe('system');
-    expect(result.messages[0].content).toBe('You are a helpful assistant');
     expect(result.messages[1].role).toBe('user');
-    expect(result.messages[1].content).toContain('Summary');
-    // Tail messages preserved in order
-    expect(result.messages[2].content).toBe('conv-21');
-    expect(result.messages[6].content).toBe('conv-25');
+    expect((result.messages[1].content as string)).toContain('[Conversation compressed]');
+    expect(result.messages[2].role).toBe('assistant');
 
-    // File persistence
-    expect(result.originalMessagesPath).not.toBeNull();
-    expect(fw.write).toHaveBeenCalledTimes(1);
-
-    // Stats
-    expect(result.stats).not.toBeNull();
-    expect(result.stats!.originalTokenCount).toBe(190000);
-    expect(result.stats!.compactedTokenCount).toBe(55000);
-    expect(result.stats!.compactedMessageCount).toBe(20);
-    expect(result.stats!.retainedMessageCount).toBe(6); // 1 head + 5 tail
+    expect(result.stats!.compactedMessageCount).toBe(25);
+    expect(result.stats!.retainedMessageCount).toBe(1); // head only
+    expect(result.stats!.restoredFileCount).toBe(0);
+    expect(result.stats!.restoredTokenCount).toBe(0);
   });
 
-  // BDD Scenario: token 未达阈值时不执行压缩
+  // BDD: token 未达阈值时不执行压缩
   it('should not compact, call LLM, or write files when below threshold', async () => {
     const messages = [msg('user', 'hello'), msg('assistant', 'hi')];
     const llm: LlmClient = {
@@ -755,102 +1128,115 @@ describe('compactMessages integration', () => {
     });
 
     expect(result.compacted).toBe(false);
-    expect(result.messages).toBe(messages); // same reference
+    expect(result.messages).toBe(messages);
     expect(result.stats).toBeNull();
     expect(result.originalMessagesPath).toBeNull();
     expect(llm.summarize).not.toHaveBeenCalled();
     expect(fw.write).not.toHaveBeenCalled();
   });
 
-  // BDD Scenario: 无 Middle 区域时跳过压缩
-  it('should skip compaction when head + tail cover all messages', async () => {
-    const messages = [
-      msg('system', 'sys'),
-      msg('user', 'big message'),
-      msg('assistant', 'reply'),
-    ];
-    // Total: 190000 (above threshold), tail budget=198000 (0.99 ratio)
-    // Tail scan: reply=100000 (<198000, continue), big_message=100000 (200000>=198000, stop)
-    // → tail covers all non-system messages, middle is empty
-    const llm: LlmClient = {
-      countTokens: vi.fn()
-        .mockResolvedValueOnce(190000)
-        .mockResolvedValueOnce(100000)
-        .mockResolvedValueOnce(100000),
-      summarize: vi.fn(),
-    };
-    const fw = createMockFileWriter();
-    const logger = createMockLogger();
+  // BDD: LLM 摘要失败：容错跳过压缩
+  it('should skip compaction when all LLM retries fail', async () => {
+    try {
+      vi.useFakeTimers();
 
-    const result = await compactMessages(messages, {
-      llmClient: llm, fileWriter: fw, logger,
-      contextTokenLimit: 200000, compactThresholdRatio: 0.92,
-      tailRetentionRatio: 0.99,
-    });
+      const messages = [
+        msg('system', 'sys'),
+        msg('user', 'u1'),
+        msg('assistant', 'reply'),
+      ];
+      const llm: LlmClient = {
+        countTokens: vi.fn().mockResolvedValueOnce(190000),
+        summarize: vi.fn()
+          .mockRejectedValueOnce(new Error('fail 1'))
+          .mockRejectedValueOnce(new Error('fail 2'))
+          .mockRejectedValueOnce(new Error('fail 3')),
+      };
+      const fw = createMockFileWriter();
+      const logger = createMockLogger();
 
-    expect(result.compacted).toBe(false);
-    expect(llm.summarize).not.toHaveBeenCalled();
+      const promise = compactMessages(messages, {
+        llmClient: llm, fileWriter: fw, logger,
+        contextTokenLimit: 200000, compactThresholdRatio: 0.92,
+        maxRetries: 2,
+      });
+
+      await vi.advanceTimersByTimeAsync(5000);
+      const result = await promise;
+
+      expect(result.compacted).toBe(false);
+      expect(result.messages).toBe(messages);
+      expect(logger.error).toHaveBeenCalledWith(
+        'All summarization attempts failed, skipping compaction',
+        expect.any(Object),
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  // BDD Scenario: 多次压缩叠加
+  // BDD: 多次压缩叠加
   it('should compact previously summarized messages in second compaction', async () => {
     // --- First compaction ---
-    const messages1 = [
+    const messages1: Message[] = [
       msg('system', 'sys'),
       msg('user', 'u1'),
-      msg('user', 'u2'),
+      readFileMsg('/project/src/app.ts'),
       msg('assistant', 'reply1'),
     ];
     const llm1: LlmClient = {
       countTokens: vi.fn()
         .mockResolvedValueOnce(190000) // total
-        .mockResolvedValueOnce(30000)  // tail: reply1
         .mockResolvedValueOnce(50000), // compacted
       summarize: vi.fn().mockResolvedValueOnce('Summary of first session'),
     };
     const fw1 = createMockFileWriter();
+    const fr1 = createMockFileReader({
+      '/project/src/app.ts': 'const app = express();',
+    });
 
     const result1 = await compactMessages(messages1, {
       llmClient: llm1, fileWriter: fw1, logger: createMockLogger(),
       contextTokenLimit: 200000, compactThresholdRatio: 0.92,
-      tailRetentionRatio: 0.15, sessionId: 'multi',
+      sessionId: 'multi', fileReader: fr1, workDir: '/project',
     });
     expect(result1.compacted).toBe(true);
-    // result1.messages = [sys, "Summary of first session", reply1]
 
-    // --- Simulate continued conversation, then second compaction ---
+    // --- Second compaction ---
     const messages2 = [
       ...result1.messages,
       msg('user', 'new_u1'),
-      msg('user', 'new_u2'),
+      readFileMsg('/project/src/index.ts'),
       msg('assistant', 'new_reply'),
     ];
-    // messages2 = [sys, summary1, reply1, new_u1, new_u2, new_reply] (6 msgs)
+
     const llm2: LlmClient = {
       countTokens: vi.fn()
         .mockResolvedValueOnce(190000)  // total
-        .mockResolvedValueOnce(15000)   // tail: new_reply
-        .mockResolvedValueOnce(15000)   // tail: new_u2 → 30000 >= 30000, stop
         .mockResolvedValueOnce(45000),  // compacted
       summarize: vi.fn().mockResolvedValueOnce('Condensed summary including prior summary'),
     };
     const fw2 = createMockFileWriter();
+    const fr2 = createMockFileReader({
+      '/project/src/app.ts': 'const app = express();',
+      '/project/src/index.ts': 'import { app } from "./app";',
+    });
 
     const result2 = await compactMessages(messages2, {
       llmClient: llm2, fileWriter: fw2, logger: createMockLogger(),
       contextTokenLimit: 200000, compactThresholdRatio: 0.92,
-      tailRetentionRatio: 0.15, sessionId: 'multi',
+      sessionId: 'multi', fileReader: fr2, workDir: '/project',
     });
 
     expect(result2.compacted).toBe(true);
-    // First summary was in middle and got compacted
-    expect(result2.messages[1].content).toBe('Condensed summary including prior summary');
+    // Summary should contain the condensed content
+    expect((result2.messages[1].content as string)).toContain('Condensed summary including prior summary');
     // Sequence incremented
     const path2 = (fw2.write as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(path2).toMatch(/-2\.json$/);
   });
 
-  // BDD Scenario: 与 offload 组合使用
+  // BDD: 与 offload 组合使用
   it('should compact messages containing offloaded tool_result references', async () => {
     const messages: Message[] = [
       msg('system', 'sys'),
@@ -876,15 +1262,9 @@ describe('compactMessages integration', () => {
       msg('assistant', 'bug fixed'),
     ];
 
-    // Token sequence:
-    // 1. Total: 185000 (above 184000 threshold)
-    // 2. Tail scan: 'bug fixed'=15000, 'fix the bug'=15000 → 30000 >= 30000, stop
-    // 3. Compacted total: 40000
     const llm: LlmClient = {
       countTokens: vi.fn()
         .mockResolvedValueOnce(185000)
-        .mockResolvedValueOnce(15000)
-        .mockResolvedValueOnce(15000)
         .mockResolvedValueOnce(40000),
       summarize: vi.fn().mockResolvedValueOnce(
         '## Summary\nFiles: /src/big.ts (offloaded to /tmp/offload-001.txt)\nActions: analyzed and fixed bug',
@@ -895,14 +1275,12 @@ describe('compactMessages integration', () => {
     const result = await compactMessages(messages, {
       llmClient: llm, fileWriter: fw, logger: createMockLogger(),
       contextTokenLimit: 200000, compactThresholdRatio: 0.92,
-      tailRetentionRatio: 0.15,
+      maxRestoreFiles: 0,
     });
 
     expect(result.compacted).toBe(true);
-    // Summary contains offload reference
-    expect(result.messages[1].content).toContain('offload');
+    expect((result.messages[1].content as string)).toContain('offload');
 
-    // Verify offloaded content was passed to LLM for summarization
     const summarizeCall = (llm.summarize as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
     expect(summarizeCall).toContain('offload');
     expect(summarizeCall).toContain('/tmp/offload-001.txt');

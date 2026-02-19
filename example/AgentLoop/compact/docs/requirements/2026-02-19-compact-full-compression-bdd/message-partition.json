@@ -1,0 +1,96 @@
+[
+  {
+    "category": "functional",
+    "feature": "message-partition",
+    "description": "消息分区：将消息列表划分为 Head（system prompt）和 Rest（压缩目标）两个区域",
+    "overallPass": false,
+    "bdd": [
+      {
+        "scenario": "正常分区：system 消息归入 Head，其余归入 Rest",
+        "description": "当消息列表以 system 消息开头时，连续的 system 消息归入 Head，其余全部归入 Rest",
+        "steps": {
+          "given": [
+            "消息列表包含 2 条 system 消息、3 条 user 消息和 2 条 assistant 消息"
+          ],
+          "when": [
+            "执行消息分区"
+          ],
+          "then": [
+            "Head 包含 2 条 system 消息",
+            "Rest 包含 5 条消息（3 user + 2 assistant）",
+            "Head 和 Rest 的消息总数等于原始消息总数"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "无 system 消息：所有消息归入 Rest",
+        "description": "当消息列表不以 system 角色开头时，Head 为空，所有消息归入 Rest",
+        "steps": {
+          "given": [
+            "消息列表以 user 消息开头，共 4 条消息"
+          ],
+          "when": [
+            "执行消息分区"
+          ],
+          "then": [
+            "Head 为空数组",
+            "Rest 包含全部 4 条消息"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "只有 system 消息：Rest 为空",
+        "description": "当所有消息都是 system 角色时，Rest 为空数组",
+        "steps": {
+          "given": [
+            "消息列表包含 3 条 system 消息，无其他角色消息"
+          ],
+          "when": [
+            "执行消息分区"
+          ],
+          "then": [
+            "Head 包含 3 条 system 消息",
+            "Rest 为空数组"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "空消息列表",
+        "description": "当消息列表为空时，Head 和 Rest 均为空",
+        "steps": {
+          "given": [
+            "消息列表为空数组"
+          ],
+          "when": [
+            "执行消息分区"
+          ],
+          "then": [
+            "Head 为空数组",
+            "Rest 为空数组"
+          ]
+        },
+        "passes": false
+      },
+      {
+        "scenario": "system 消息不连续：仅开头连续的归入 Head",
+        "description": "当 system 消息出现在中间位置时，只有开头连续的 system 消息归入 Head",
+        "steps": {
+          "given": [
+            "消息列表为 [system, system, user, system, assistant]"
+          ],
+          "when": [
+            "执行消息分区"
+          ],
+          "then": [
+            "Head 包含前 2 条 system 消息",
+            "Rest 包含 3 条消息（user, system, assistant）"
+          ]
+        },
+        "passes": false
+      }
+    ]
+  }
+]
