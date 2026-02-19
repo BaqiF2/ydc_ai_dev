@@ -1,9 +1,12 @@
 /**
  * Core offload algorithm for Agent context management.
  * Scans messages for tool_result blocks and delegates large content to file storage.
+ * Includes a ratio threshold guard: skips offloading when offloadable chars are below
+ * a configurable percentage of total message chars (default 20%).
  *
  * Core exports:
  * - OFFLOAD_CHAR_THRESHOLD: Minimum character count for offloading (100)
+ * - OFFLOAD_RATIO_THRESHOLD: Minimum offloadable-to-total char ratio (0.2)
  * - offloadToolResults: Main offload function that processes messages and returns OffloadResult
  */
 
@@ -20,6 +23,55 @@ const OFFLOAD_CHAR_THRESHOLD = parseInt(
   process.env.OFFLOAD_CHAR_THRESHOLD || '100',
   10,
 );
+
+/** Minimum ratio of offloadable chars to total chars to proceed with offloading */
+const OFFLOAD_RATIO_THRESHOLD = parseFloat(
+  process.env.OFFLOAD_RATIO_THRESHOLD || '0.2',
+);
+
+/**
+ * Calculate the character count of a single content block.
+ * Used during pre-scan to compute total message chars.
+ */
+function getBlockCharCount(block: ContentBlock): number {
+  switch (block.type) {
+    case 'text':
+      return block.text.length;
+    case 'tool_use':
+      return JSON.stringify(block.input).length;
+    case 'tool_result':
+      return getContentCharCount(block.content);
+  }
+}
+
+/**
+ * Pre-scan messages to determine if offloading is worthwhile.
+ * Returns true when offloading should be skipped.
+ */
+function shouldSkipOffload(messages: Message[]): boolean {
+  let totalChars = 0;
+  let offloadableChars = 0;
+
+  for (const message of messages) {
+    for (const block of message.content) {
+      const charCount = getBlockCharCount(block);
+      totalChars += charCount;
+
+      if (
+        block.type === 'tool_result' &&
+        charCount >= OFFLOAD_CHAR_THRESHOLD
+      ) {
+        offloadableChars += charCount;
+      }
+    }
+  }
+
+  if (totalChars === 0) return true;
+  if (offloadableChars === 0) return true;
+  if (offloadableChars / totalChars < OFFLOAD_RATIO_THRESHOLD) return true;
+
+  return false;
+}
 
 /**
  * Calculate the character count of a tool_result's content.
@@ -72,7 +124,9 @@ function buildReference(fileName: string): string {
 /**
  * Offload large tool_result content from messages to files.
  *
- * Scans messages from earliest to latest. For each tool_result block whose
+ * Pre-scans all messages to check if the offloadable char ratio meets the
+ * threshold. If not, returns the original messages array immediately.
+ * Otherwise, scans messages from earliest to latest. For each tool_result block whose
  * content character count >= OFFLOAD_CHAR_THRESHOLD, writes the content to
  * a file and replaces it with a file path reference.
  *
@@ -86,6 +140,16 @@ export async function offloadToolResults(
   outputDir: string,
   writer: FileWriter,
 ): Promise<OffloadResult> {
+  // Ratio threshold guard: skip when offload value is too low
+  if (shouldSkipOffload(messages)) {
+    return {
+      messages,
+      offloadedCount: 0,
+      freedChars: 0,
+      files: [],
+    };
+  }
+
   const usedIds = new Map<string, number>();
   const files: string[] = [];
   let offloadedCount = 0;

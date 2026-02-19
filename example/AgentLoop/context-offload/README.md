@@ -5,6 +5,7 @@ Agent Loop 上下文卸载模块 — 当对话上下文接近 token 上限时，
 ## 功能特性
 
 - **tool_result 内容卸载** — 扫描消息数组，将字符数 ≥ 100 的 `tool_result` 内容写入独立文件
+- **卸载比例门槛** — 预扫描全部消息，当可卸载字符占比不足阈值（默认 20%）时跳过卸载，避免低收益操作
 - **路径引用替换** — 卸载后的内容替换为 `[Content offloaded to: ./tool-result-{id}.md]` 引用
 - **不可变操作** — 不修改原始消息数组，返回全新的消息列表
 - **卸载统计** — 返回卸载数量、释放字符数和生成的文件路径列表
@@ -93,6 +94,14 @@ const result = await offloadToolResultsWithWriter(messages, './offload', customW
 5. `tool_use_id` 重复时追加序号：`tool-result-{id}-1.md`
 
 阈值可通过环境变量 `OFFLOAD_CHAR_THRESHOLD` 配置。
+
+### 卸载比例门槛
+
+在执行卸载前，先预扫描所有消息计算可卸载字符占总字符数的比例。当比例低于阈值时跳过卸载，直接返回原始消息列表：
+
+- 默认阈值 **20%**（可通过环境变量 `OFFLOAD_RATIO_THRESHOLD` 配置，取值 0~1）
+- 跳过时零开销：不做拷贝、不创建目录、不写文件
+- 设为 `0` 时：只要有可卸载内容就执行（但无可卸载内容仍跳过）
 
 ## 运行示例
 

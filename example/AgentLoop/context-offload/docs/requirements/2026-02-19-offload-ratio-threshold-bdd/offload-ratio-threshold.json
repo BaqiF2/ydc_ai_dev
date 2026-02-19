@@ -1,0 +1,237 @@
+[
+  {
+    "category": "functional",
+    "feature": "offload-ratio-threshold",
+    "description": "卸载比例门槛 — 预扫描可卸载字符占比，低于阈值时跳过卸载",
+    "overallPass": true,
+    "bdd": [
+      {
+        "scenario": "比例充足时正常执行卸载",
+        "description": "当可卸载字符占总字符数比例 ≥ 20% 时，应执行卸载流程",
+        "steps": {
+          "given": [
+            "消息列表总字符数为 1000",
+            "其中可卸载的 tool_result 字符数为 300（占比 30%）",
+            "OFFLOAD_RATIO_THRESHOLD 为默认值 0.2"
+          ],
+          "when": [
+            "调用 offloadToolResults"
+          ],
+          "then": [
+            "offloadedCount 大于 0",
+            "freedChars 大于 0",
+            "files 数组非空",
+            "返回的 messages 为新数组（非原始引用）"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "比例不足时跳过卸载",
+        "description": "当可卸载字符占总字符数比例 < 20% 时，应跳过卸载",
+        "steps": {
+          "given": [
+            "消息列表总字符数为 1000",
+            "其中可卸载的 tool_result 字符数为 100（占比 10%）",
+            "OFFLOAD_RATIO_THRESHOLD 为默认值 0.2"
+          ],
+          "when": [
+            "调用 offloadToolResults"
+          ],
+          "then": [
+            "offloadedCount 等于 0",
+            "freedChars 等于 0",
+            "files 为空数组",
+            "返回的 messages 为原始引用（同一对象）"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "比例恰好等于阈值时执行卸载",
+        "description": "当比例恰好 = 20% 时，应执行卸载（≥ 判定）",
+        "steps": {
+          "given": [
+            "消息列表总字符数为 500",
+            "其中可卸载的 tool_result 字符数为 100（占比恰好 20%）",
+            "OFFLOAD_RATIO_THRESHOLD 为 0.2"
+          ],
+          "when": [
+            "调用 offloadToolResults"
+          ],
+          "then": [
+            "offloadedCount 大于 0",
+            "卸载流程正常执行"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "比例略低于阈值时跳过卸载",
+        "description": "当比例略低于 20% 时，应跳过卸载",
+        "steps": {
+          "given": [
+            "消息列表总字符数为 1000",
+            "其中可卸载的 tool_result 字符数为 199（占比 19.9%）",
+            "OFFLOAD_RATIO_THRESHOLD 为 0.2"
+          ],
+          "when": [
+            "调用 offloadToolResults"
+          ],
+          "then": [
+            "offloadedCount 等于 0",
+            "返回原始 messages 引用"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "空消息列表直接跳过",
+        "description": "当 messages 为空数组时，totalChars=0，直接跳过避免除零",
+        "steps": {
+          "given": [
+            "messages 为空数组 []"
+          ],
+          "when": [
+            "调用 offloadToolResults"
+          ],
+          "then": [
+            "offloadedCount 等于 0",
+            "freedChars 等于 0",
+            "files 为空数组",
+            "返回的 messages 为原始空数组引用"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "无 tool_result 时跳过",
+        "description": "消息中无任何 tool_result 块，offloadableChars=0，跳过",
+        "steps": {
+          "given": [
+            "消息列表包含 text 和 tool_use 块，但无 tool_result 块",
+            "总字符数大于 0"
+          ],
+          "when": [
+            "调用 offloadToolResults"
+          ],
+          "then": [
+            "offloadedCount 等于 0",
+            "返回原始 messages 引用"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "全部 tool_result 低于单块阈值时跳过",
+        "description": "所有 tool_result 字符数 < 100，offloadableChars=0，跳过",
+        "steps": {
+          "given": [
+            "消息列表包含多个 tool_result 块",
+            "每个 tool_result 的字符数均 < 100",
+            "总字符数大于 0"
+          ],
+          "when": [
+            "调用 offloadToolResults"
+          ],
+          "then": [
+            "offloadedCount 等于 0",
+            "返回原始 messages 引用"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "threshold 为 0 且有可卸载内容时执行卸载",
+        "description": "OFFLOAD_RATIO_THRESHOLD=0 时，只要 offloadableChars > 0 就执行",
+        "steps": {
+          "given": [
+            "OFFLOAD_RATIO_THRESHOLD 设置为 0",
+            "消息列表包含至少一个字符数 ≥ 100 的 tool_result"
+          ],
+          "when": [
+            "调用 offloadToolResults"
+          ],
+          "then": [
+            "offloadedCount 大于 0",
+            "卸载流程正常执行"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "threshold 为 0 且无可卸载内容时跳过",
+        "description": "OFFLOAD_RATIO_THRESHOLD=0 时，offloadableChars=0 仍然跳过",
+        "steps": {
+          "given": [
+            "OFFLOAD_RATIO_THRESHOLD 设置为 0",
+            "消息列表中所有 tool_result 字符数均 < 100"
+          ],
+          "when": [
+            "调用 offloadToolResults"
+          ],
+          "then": [
+            "offloadedCount 等于 0",
+            "返回原始 messages 引用"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "threshold 为 1 时仅全部可卸载才执行",
+        "description": "OFFLOAD_RATIO_THRESHOLD=1 时，需要 100% 内容都可卸载才执行",
+        "steps": {
+          "given": [
+            "OFFLOAD_RATIO_THRESHOLD 设置为 1",
+            "消息列表中可卸载字符占比为 80%"
+          ],
+          "when": [
+            "调用 offloadToolResults"
+          ],
+          "then": [
+            "offloadedCount 等于 0",
+            "返回原始 messages 引用（比例 80% < 100%，不执行）"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "环境变量配置自定义阈值",
+        "description": "通过环境变量 OFFLOAD_RATIO_THRESHOLD 配置非默认阈值",
+        "steps": {
+          "given": [
+            "OFFLOAD_RATIO_THRESHOLD 设置为 0.5",
+            "消息列表中可卸载字符占比为 40%"
+          ],
+          "when": [
+            "调用 offloadToolResults"
+          ],
+          "then": [
+            "offloadedCount 等于 0",
+            "返回原始 messages 引用（40% < 50%，不执行）"
+          ]
+        },
+        "passes": true
+      },
+      {
+        "scenario": "跳过时不产生文件写入副作用",
+        "description": "跳过卸载时不应创建任何文件或目录",
+        "steps": {
+          "given": [
+            "消息列表中可卸载字符占比 < OFFLOAD_RATIO_THRESHOLD",
+            "outputDir 目录不存在"
+          ],
+          "when": [
+            "调用 offloadToolResults"
+          ],
+          "then": [
+            "outputDir 目录未被创建",
+            "无任何文件写入操作",
+            "FileWriter.writeFile 未被调用"
+          ]
+        },
+        "passes": true
+      }
+    ]
+  }
+]

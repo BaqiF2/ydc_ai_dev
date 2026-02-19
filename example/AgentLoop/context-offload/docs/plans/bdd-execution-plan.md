@@ -4,11 +4,11 @@
 
 | 项目 | 值 |
 |------|-----|
-| 生成日期 | 2026-02-17 |
-| PRD 文件 | docs/requirements/2026-02-17-context-offload-prd.md |
+| 生成日期 | 2026-02-17（更新 2026-02-19） |
+| PRD 文件 | docs/requirements/2026-02-17-context-offload-prd.md, docs/requirements/2026-02-19-offload-ratio-threshold-prd.md |
 | 架构文档 | docs/architecture.md |
 | 技术栈文档 | docs/tech-stack.md |
-| BDD 目录 | docs/requirements/2026-02-17-context-offload-bdd/ |
+| BDD 目录 | docs/requirements/2026-02-17-context-offload-bdd/, docs/requirements/2026-02-19-offload-ratio-threshold-bdd/ |
 
 ## 项目上下文
 
@@ -61,6 +61,12 @@ Walking Skeleton 阶段已经实现了完整的业务逻辑作为技术验证：
 | 3 | F-003 消息路径引用替换 | (包含在 tool-result-offload 中) | core | (含在F-001中) | Done |
 | 4 | F-005 自动创建输出目录 | output-directory-management | infrastructure | 3 | Done |
 
+### Phase 1.5: Must 级别特性（增量 PRD 2026-02-19）
+
+| 序号 | Feature | BDD Feature | 模块 | 场景数 | 状态 |
+|------|---------|-------------|------|--------|------|
+| 6 | F-006 卸载比例门槛 | offload-ratio-threshold | core | 12 | Done |
+
 ### Phase 2: Should 级别特性
 
 | 序号 | Feature | BDD Feature | 模块 | 场景数 | 状态 |
@@ -104,6 +110,8 @@ BDD 文件按两个 feature 组织：
 - 无矛盾或歧义发现
 - 所有 BDD 场景均可映射到现有测试
 - 测试断言覆盖了 BDD `then` 步骤中的所有验证点
+- F-006 需要在测试中控制环境变量 `OFFLOAD_RATIO_THRESHOLD`，需注意模块级常量的缓存问题（可能需要 `vi.stubEnv` 或动态 import）
+- F-006 的 `getContentCharCount` 函数当前为私有函数，预扫描阶段可复用但需注意它对不同 ContentBlock 类型的计算方式
 
 ## 分层实现顺序
 
@@ -130,6 +138,8 @@ core (types.ts, offload.ts) → infrastructure (file-writer.ts) → index.ts (�
 | F-003 消息路径引用替换 | Pending | Done | 含在 F-001 测试中 |
 | F-004 卸载结果统计 | Pending | Done | 含在 F-001 测试中 |
 | F-005 自动创建输出目录 | Pending | Done | 3/3 scenarios verified |
+| F-006 卸载比例门槛 | Pending | In Progress | Starting RED phase |
+| F-006 卸载比例门槛 | In Progress | Done | 12/12 scenarios, all quality gates passed |
 
 ## 最终验证清单
 
@@ -141,3 +151,40 @@ core (types.ts, offload.ts) → infrastructure (file-writer.ts) → index.ts (�
 - [x] TypeScript 编译零错误
 - [x] 所有 BDD 场景 passes 更新为 true (12/12)
 - [x] 所有 BDD feature overallPass 更新为 true (2/2)
+
+---
+
+## 增量更新（2026-02-19）
+
+### 新增 Feature: F-006 卸载比例门槛
+
+**PRD**: `docs/requirements/2026-02-19-offload-ratio-threshold-prd.md`
+**BDD**: `docs/requirements/2026-02-19-offload-ratio-threshold-bdd/offload-ratio-threshold.json`
+
+### BDD → 测试映射（F-006）
+
+| BDD 场景 | 测试类型 | 测试方法 | 映射状态 |
+|----------|---------|---------|---------|
+| 比例充足时正常执行卸载 | unit | offload-ratio-threshold.test.ts → `should offload when ratio >= threshold (30% >= 20%)` | ✅ 映射完成 |
+| 比例不足时跳过卸载 | unit | offload-ratio-threshold.test.ts → `should skip offload when ratio < threshold (10% < 20%)` | ✅ 映射完成 |
+| 比例恰好等于阈值时执行卸载 | unit | offload-ratio-threshold.test.ts → `should offload when ratio exactly equals threshold (20%)` | ✅ 映射完成 |
+| 比例略低于阈值时跳过卸载 | unit | offload-ratio-threshold.test.ts → `should skip offload when ratio slightly below threshold (19.9%)` | ✅ 映射完成 |
+| 空消息列表直接跳过 | unit | offload-ratio-threshold.test.ts → `should skip and return original reference for empty messages` | ✅ 映射完成 |
+| 无 tool_result 时跳过 | unit | offload-ratio-threshold.test.ts → `should skip when no tool_result blocks exist` | ✅ 映射完成 |
+| 全部 tool_result 低于单块阈值时跳过 | unit | offload-ratio-threshold.test.ts → `should skip when all tool_results are below per-block threshold` | ✅ 映射完成 |
+| threshold 为 0 且有可卸载内容时执行卸载 | unit | offload-ratio-threshold.test.ts → `should offload when threshold=0 and offloadable content exists` | ✅ 映射完成 |
+| threshold 为 0 且无可卸载内容时跳过 | unit | offload-ratio-threshold.test.ts → `should skip when threshold=0 but no offloadable content` | ✅ 映射完成 |
+| threshold 为 1 时仅全部可卸载才执行 | unit | offload-ratio-threshold.test.ts → `should skip when threshold=1 and ratio is 80%` | ✅ 映射完成 |
+| 环境变量配置自定义阈值 | unit | offload-ratio-threshold.test.ts → `should skip when custom threshold=0.5 and ratio is 40%` | ✅ 映射完成 |
+| 跳过时不产生文件写入副作用 | unit | offload-ratio-threshold.test.ts → `should not call writer.writeFile when skipping` | ✅ 映射完成 |
+
+### 最终验证清单（增量）
+
+- [x] F-006 所有 12 个 BDD 场景有对应测试
+- [x] 所有新增单元测试通过 (12/12)
+- [x] 现有测试无回归 (15/15)
+- [x] 覆盖率仍达标
+- [x] ESLint 零错误
+- [x] dependency-cruiser 零违规
+- [x] TypeScript 编译零错误
+- [x] BDD JSON passes 更新为 true (12/12)
