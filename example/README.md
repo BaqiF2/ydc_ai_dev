@@ -30,3 +30,10 @@ Agent Loop 上下文管理相关模块，解决长会话中 token 超限问题�
 1. [compact](AgentLoop/compact/) - 上下文压缩：通过独立 LLM 调用将中间历史消息生成结构化摘要，替换原始消息以释放 token 空间
 2. [context-offload](AgentLoop/context-offload/) - 上下文卸载：将历史消息中 `tool_result` 的大段内容写入文件，替换为文件路径引用
 3. [tool-direct-offload](AgentLoop/tool-direct-offload/) - 工具结果直接卸载：作为 Agent Loop 中间件，在工具执行结果返回 LLM 之前将超长内容写入文件
+
+### Google Gemini
+通过中转平台接入 Google Gemini 模型的调用示例，使用 `google-genai` SDK 并支持自定义 `base_url`。
+```bash
+# 配置 .env 中的 GEMINI_API_KEY 和 GEMINI_BASE_URL 后运行
+uv run python example/google/genai.py
+```
