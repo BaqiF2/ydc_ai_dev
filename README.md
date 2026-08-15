@@ -1,3 +1,5 @@
+
+
 [中文版本](README_ZH.md) | Chinese Version
 
 # Ydc Ai Dev
@@ -27,7 +29,7 @@ Then edit the `.env` file and fill in your API configuration:
 uv sync
 
 # Run quick start example
-uv run python example/claude/py/quickstart/agent.ts
+uv run python example/claude/py/quickstart/agent.py
 
 # Run other examples (such as langchain ReAct)
 uv run python example/langchain01/core/xxx.py
